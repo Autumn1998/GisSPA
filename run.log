@@ -1,0 +1,5 @@
+nvcc  -I/home/liutong/software/hdf5/include -O3 -DH5Gopen_vers=1 -DDEBUG -g -G -c main.cu 
+nvcc  -lcufft -Xcompiler -fopenmp -pg -L/home/liutong/software/hdf5/lib -lhdf5  -o main main.o emdata_.o util_func.o emhdf_.o emhdf2_.o DataReader.o GPU_func.o
+0.000000 0.000000
+nan nan
+Error invalid configuration argument at main.cu:196
