@@ -97,6 +97,11 @@ void readParameters(int argc, char *argv[], Parameters *p)
 			p->padding_size=atoi(argv[i]);
 			continue;
 		}
+		if(option.compare("--sigma_file")==0){
+			i++;
+			strcpy(p->sigma_path, argv[i]);
+			continue;
+		}
 		printf("Undefined option: %s .Abort.\n",argv[i]);
 	}
 	if(p->padding_size*p->padding_size % 1024 != 0)

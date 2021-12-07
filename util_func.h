@@ -69,4 +69,7 @@ float grand(float mean,float sigma);
 
 int Split(const char* str, vector<string>& results, const char* delim, bool empties);
 void printHelpMsg();
+
+bool is_big_endian();
+bool is_little_endian();
 #endif

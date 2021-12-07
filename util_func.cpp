@@ -95,3 +95,14 @@ void printHelpMsg()
 	printf("--threshold        cc threshold value, only output LOCs beyond this value\n");
 	printf("--output           output lstfile filaname\n");
 }
+
+bool is_little_endian() {	// check if this machine is little endian
+	int one=1;
+	char* bytep=(char*)(&one);
+	if(bytep[0]==1 && bytep[1]==0 && bytep[2]==0 && bytep[3]==0) return true;
+	else	return false; 
+}
+
+bool is_big_endian() {		// check if this machine is big endian
+	return ! is_little_endian();
+}

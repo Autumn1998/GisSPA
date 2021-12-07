@@ -4,7 +4,7 @@
 #ifndef FLT_MAX
 #define FLT_MAX 3.402823466e+38f
 #endif
-
+#define H5_USE_16_API
 #ifndef MAXPATHLEN
 #define MAXPATHLEN	1024
 #endif
@@ -33,6 +33,9 @@ class Euler
         void setAngle(float e1, float e2, float e3, float e0, int typ); // quaternion, spin, and SGIROT setAngle
         void setAngle(float *m); // matrix setAngle
         void rectify();
+        float alt() const { return alt_ ;}
+        float az() const {return az_  ;}
+        float phi() const { return phi_ ;}
 
     private:
         int typ_;                  // The representation of the orientation that the user is employing
@@ -196,14 +199,9 @@ class EMObject
         operator vector < float > () const;
 	    operator vector<string> () const;
         
-    private:
-        union
-        {
-            int n;
-            float f;
-            double d;
-        };
-
+        int n;
+        float f;
+        double d;
         emdata *emobj;
         string str;
         ObjectType type;

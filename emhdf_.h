@@ -1,7 +1,5 @@
 #ifndef _emhdf_h_
 #define _emhdf_h_
-#undef H5Gopen_vers
-#define H5Gopen_vers 1
 #include <hdf5.h>
 #include <vector>
 #include <string>

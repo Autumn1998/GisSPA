@@ -1,5 +1,99 @@
 #include "GPU_func.cuh"
 
+__global__ void UpdateSigma(cufftComplex *d_templates,float *d_buf)
+{
+	extern __shared__ float sdata[];
+    // each thread loads one element from global to shared mem
+    int tid = threadIdx.x;
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+
+	sdata[tid] = d_templates[i].x;
+	sdata[tid+blockDim.x] = d_templates[i].x*d_templates[i].x;
+	__syncthreads();
+
+	for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
+		if(tid<s)
+		{
+			//sum of data[i] & data[i]^2
+			sdata[tid] += sdata[tid + s]; 
+			sdata[tid+blockDim.x] += sdata[tid + blockDim.x + s];
+		}
+		__syncthreads();
+	}
+	if(tid==0){
+		d_buf[blockIdx.x*2] = sdata[0];
+		d_buf[blockIdx.x*2+1] = sdata[blockDim.x];
+	}
+}
+
+__global__  void  generate_mask(int l,cufftComplex *mask,float r,float *res,float up,float low)
+{
+	extern __shared__ float sdata[];
+    // each thread loads one element from global to shared mem
+    int tid = threadIdx.x;
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	int image_size = l*l;
+	int local_id = i % image_size;
+    int x = local_id % l;
+    int y = local_id / l;
+
+	//Dis^2 between (x,y) and center (l/2,l/2)
+	float rr = (x-l/2)*(x-l/2) + (y-l/2)*(y-l/2);
+	if(rr>=low && rr<=up)
+	{
+		mask[i].x = 1;
+		mask[i].y = 0;
+	}
+
+	//reduction for number of non-zero digits
+	sdata[tid] = mask[i].x;
+	__syncthreads();
+
+	for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
+		if(tid<s)	sdata[tid] += sdata[tid+s];
+		__syncthreads();
+	}
+	if(tid==0) res[blockIdx.x] = sdata[0];
+
+}
+
+__global__  void  multiCount_dot(int l,cufftComplex *mask,cufftComplex *d_templates,float *constants,float *res)
+{
+	extern __shared__ float sdata[];
+    // each thread loads one element from global to shared mem
+    int tid = threadIdx.x;
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	int image_size = l*l;
+	int image_id = i/image_size;
+
+	//Multi constant 1/non-zeros
+	if(constants[image_id] != 0) mask[i].x *= 1.0/constants[image_id];
+
+	//reduction for dot
+	sdata[tid] = mask[i].x * d_templates[i].x;
+	__syncthreads();
+
+	for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
+		if(tid<s)	sdata[tid] += sdata[tid+s];
+		__syncthreads();
+	}
+	//use res to store dot
+	if(tid==0) res[blockIdx.x] = sdata[0];
+
+}
+
+__global__  void  scale_each(int l,cufftComplex *d_templates,float *ems,double *d_sigmas)
+{
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	int image_size = l*l;
+	int image_id = i/image_size;
+
+	if(d_sigmas[image_id]-0 < EPS && d_sigmas[image_id]-0 >-EPS ) return;
+	d_templates[i].x = (d_templates[i].x - ems[image_id])/d_sigmas[image_id];
+
+}
+
+
 __global__  void  SQRSum_by_circle(cufftComplex *data, float *ra, float *rb, int l)
 {
     // i <==> global ID
@@ -16,6 +110,8 @@ __global__  void  SQRSum_by_circle(cufftComplex *data, float *ra, float *rb, int
         data[i].y=0;
 	else data[i].y=atan2(data[i].y,data[i].x);
 	data[i].x=tmp;
+
+	if(x>l/2) return;
 
     //calculate the number of point with fixed distance ('r') from center 
 	int r = floor( hypotf(min(y,l-y) ,min(x,l-x)) + 0.5) - 1;
@@ -36,29 +132,31 @@ __global__  void  whiten_Img(cufftComplex *data, float *ra, float *rb, int l)
     int local_id = i % image_size;
     int x = local_id % l;
     int y = local_id / l;
-
-    float tmp;
 	int r = floor( hypotf(min(y,l-y) ,min(x,l-x)) + 0.5) - 1;
+
 	if (r < l/2 && r >= 0) {
 		//Add offset
 		r+= (l/2)*(i/image_size);
 		float fb_infile=ra[r]/rb[r];
 		data[i].x=data[i].x/(float)sqrt(fb_infile);
 	}
+
 	//ap2ri
-	tmp=data[i].x*sinf(data[i].y);
+	float tmp=data[i].x*sinf(data[i].y);
 	data[i].x=data[i].x*cosf(data[i].y);
 	data[i].y=tmp;
+
 }
 
 __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,int l)
-{
+{	
     // i <==> global ID
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
     int image_size = l*l;
     int local_id = i % image_size;
     int x = local_id % l;
     int y = local_id / l;
+
     float r=hypotf(x-l/2,y-l/2);
 	if( r > (d_m/2+2*edge_half_width)){
 			data[i].x=0;
@@ -66,6 +164,7 @@ __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,in
 			float d=0.5*cosf(PI*(r-d_m/2)/(2*edge_half_width))+0.5;
 			data[i].x *=d;
 	}
+
 }
 
 __global__ void apply_weighting_function(cufftComplex *data,Parameters para)
@@ -87,7 +186,7 @@ __global__ void apply_weighting_function(cufftComplex *data,Parameters para)
 	data[i].x=tmp;
 
     // low pass
-	float r = hypotf(min(y,l-y) ,min(x,l-x) )+ 0.5;
+	float r = hypotf(min(y,l-y) ,min(x,l-x) );
 	int  r_round = floor(r + 0.5) - 1;
 	if (r_round<l*para.apix/para.highres && r_round >= 0) {}
 	else if(r_round>=l*para.apix/para.highres && r_round<l*para.apix/para.highres+8){
@@ -100,14 +199,16 @@ __global__ void apply_weighting_function(cufftComplex *data,Parameters para)
 		data[i].x=0;
 	float ss=r*para.ds;
 
+	float v,signal,Ncurve;
     //apply weighting function
 	if( r_round < l/2 && r_round >= 0){
-		float v=CTF_AST(x,y,l,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
-		float signal=(exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3))/(para.kk+1);
-		float Ncurve=exp(para.a*ss*ss+para.b*ss+para.b2)/signal;
+		v=CTF_AST(x,(y+l/2)%l,l,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
+		signal=(exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3))/(para.kk+1);
+		Ncurve=exp(para.a*ss*ss+para.b*ss+para.b2)/signal;
 		//euler_w[x]=1.68118*ss;
 		data[i].x=data[i].x*v*sqrt(1/(Ncurve+para.kk*v*v));
 	}
+
 }
 
 __device__ float CTF_AST (int x1, int y1, int ny, float ds, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode){
@@ -148,7 +249,7 @@ __global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int l)
     int y = local_id / l;
 	int r = floor( hypotf(min(y,l-y) ,min(x,l-x)) + 0.5) - 1;
 
-	if (r < l/2 && r >= 0) {
+	if (r < l/2 && r >= 0 && x<=l/2) {
 		sdata[tid] = data[i].x*data[i].x;
 		sdata[tid+blockDim.x] = 1;
 	}
@@ -187,22 +288,20 @@ __global__ void normalize(cufftComplex *data,int l,float *means)
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
     int image_size = l*l;
 	int template_id = i / image_size;
-	
-	if(means[template_id]!=0)
-		data[i].x=data[i].x/means[template_id];
+
+	if(means[template_id]!=0)	data[i].x=data[i].x/means[template_id];
 
 	//ap2ri
 	float tmp=data[i].x*sinf(data[i].y);
 	data[i].x=data[i].x*cosf(data[i].y);
 	data[i].y=tmp;
-
 }
 
 __global__ void rotate_and_split(float *d_image,cufftComplex *d_rotated_image,float e,
-	int nx,int ny,int padding_size ,int block_x,int overlap)
+	int nx,int ny,int padding_size ,int block_x,int block_y,int overlap)
 {
-	float cose=cos(e);
-	float sine=sin(e);
+	float cose=cos(e*PI/180);
+	float sine=sin(e*PI/180);
 	long long  id = blockIdx.x*blockDim.x + threadIdx.x;
 	int j = id/nx, i = id%nx;
 	float y = j-ny/2, x = i-nx/2;
@@ -244,23 +343,31 @@ __global__ void rotate_and_split(float *d_image,cufftComplex *d_rotated_image,fl
 		p2=d_image[k2]*t*u;
 		res=p0+p1+p2+p3;
 	}
-	
-	//if(d_image[id]>0) printf("%f image \n",d_image[id]);
+
 	int tmp = padding_size - overlap;
 	// res <=> data[i+j*nx] after rotation
 	int bx = i/tmp, rx = i%tmp;
 	int by = j/tmp, ry = j%tmp;
 	
 	//ID of sub area
-	int area_id = block_x*by+bx;
-	int off = area_id * padding_size*padding_size;
+	int area_id;
+	int off;
 	//INDEX in sub area
-	int newx = rx;
-	int newy = ry;
-	// split into d_rotated_image(cufftComplex)
-	d_rotated_image[off + newx + newy*padding_size].x = res;
-	d_rotated_image[off + newx + newy*padding_size].y = 0;
-	if(rx < overlap && bx > 0)
+	int newx,newy;
+	
+	if(bx>=0 && bx<block_x && by>=0 &&by<block_y)
+	{
+		//ID of sub area
+		area_id = block_x*by+bx;
+		off = area_id * padding_size*padding_size;
+		//INDEX in sub area
+		newx = rx;
+		newy = ry;
+		// split into d_rotated_image(cufftComplex)
+		d_rotated_image[off + newx + newy*padding_size].x = res;
+		d_rotated_image[off + newx + newy*padding_size].y = 0;
+	}
+	if(rx < overlap && (bx-1)>=0 && (bx-1)<block_x && by>=0 &&by<block_y)
 	{
 		//ID of sub area
 		area_id = block_x*by+bx-1; 
@@ -272,7 +379,7 @@ __global__ void rotate_and_split(float *d_image,cufftComplex *d_rotated_image,fl
 		d_rotated_image[off + newx + newy*padding_size].x = res;
 		d_rotated_image[off + newx + newy*padding_size].y = 0;
 	}
-	if (ry < overlap && by > 0)
+	if (ry < overlap && bx>=0 && bx<block_x && (by-1)>=0 && (by-1)<block_y)
 	{
 		//ID of sub area
 		area_id = block_x*(by-1)+bx;
@@ -284,7 +391,7 @@ __global__ void rotate_and_split(float *d_image,cufftComplex *d_rotated_image,fl
 		d_rotated_image[off + newx + newy*padding_size].x = res;
 		d_rotated_image[off + newx + newy*padding_size].y = 0;
 	}
-	if(rx < overlap && ry < overlap && bx>0 && by>0)
+	if(rx < overlap && ry < overlap && (bx-1)>=0 && (bx-1)<block_x && (by-1)>=0 && (by-1)<block_y)
 	{
 		//ID of sub area
 		area_id = block_x*(by-1)+bx-1;
@@ -296,10 +403,12 @@ __global__ void rotate_and_split(float *d_image,cufftComplex *d_rotated_image,fl
 		d_rotated_image[off + newx + newy*padding_size].x = res;
 		d_rotated_image[off + newx + newy*padding_size].y = 0;
 	}
+
+
 }
 
 //Tl = template(template has been predefined by C++)
-__global__ void compute_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftComplex *IMG, int l, int block_id)
+__global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftComplex *IMG, int l, int block_id)
 {
 	//On this function,block means subimage splitted from IMG, not block ON GPU
 	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -320,6 +429,16 @@ __global__ void compute_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftComplex *I
 	// ' means conjugate
 	CCG[i].x = (IMG[j].x*Tl[i].x+IMG[j].y*Tl[i].y);
 	CCG[i].y = (IMG[j].y*Tl[i].x-IMG[j].x*Tl[i].y);
+
+	//Move center to around
+	int of = (l/2)%2,st;
+	if( of == local_y%2) st = 1; else st = 0;
+	if( (local_x-st)%2 == 0 ) 
+	{
+		CCG[i].x *= -1;
+		CCG[i].y *= -1;
+	}
+
 }
 
 //"MAX" reduction for *odata : return max{odata[i]},i
@@ -334,6 +453,7 @@ __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m)
     int local_id = i % image_size;
     int x = local_id % l;
     int y = local_id / l;
+
 
 	sdata[tid] = odata[i].x;
 	if(x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;

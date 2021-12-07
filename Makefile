@@ -1,6 +1,6 @@
 CC=nvcc 
 LINK_FLAG=-lcufft -Xcompiler -fopenmp -pg -L/home/liutong/software/hdf5/lib -lhdf5 
-COMP_FLAG=-I/home/liutong/software/hdf5/include -O3 -DH5Gopen_vers=1 -DDEBUG -g -G
+COMP_FLAG=-I/home/liutong/software/hdf5/include -O3 -DDEBUG -g -G -DH5Gopen_vers=1
 OBJ=main.o emdata_.o util_func.o emhdf_.o emhdf2_.o DataReader.o GPU_func.o
 SRC=emdata_.h MyEmhdf.h MyUtil.h DataType.h
 main: $(OBJ) 

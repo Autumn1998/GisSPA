@@ -172,12 +172,8 @@ int emdata::setSize(int x,int y, int z) {
 }
 
 int emdata::readImage(const char *filespec, int n, int nodata)
-{
-	int i,l,r;
-	FILE *in;
-	
+{	
 	if (!filespec) { printf("NULL readimage()\n"); return(-1); }
-	l=strlen(filespec);
 
     if (EMhdf::is_valid(filespec)) {	//valid HDF file
 		int ret = EMhdf::init_test(filespec);
@@ -202,7 +198,7 @@ int emdata::readImage(const char *filespec, int n, int nodata)
         return err;
     }
 
-	r=readMRC(filespec,nodata,n);
+	int r=readMRC(filespec,nodata,n);
 	if (r) { setSize(10,10,1); zero(); }
 	return r;
 

@@ -12,7 +12,7 @@
 //**** Struct contains all possible parameters in argv[]
 struct Parameters
 {	
-	char inlst[512],outlst[512],temp2d[512],eulerf[512],snr[512];
+	char inlst[512],outlst[512],temp2d[512],eulerf[512],snr[512],sigma_path[512];
 	
 	float apix,phi_step,first,last;
 	float kk=3,energy=300,cs=2.7;
@@ -54,6 +54,8 @@ struct Parameters
 		printf("--threshold        %f\n",thres);
 		printf("--diameter         %f\n",d_m);
 		printf("--padding_size     %d\n",padding_size);
+		printf("--device_id        %d\n",device_id);
+		//printf("--sigma file       %s\n",sigma_path);
 	}
 #endif
 };
