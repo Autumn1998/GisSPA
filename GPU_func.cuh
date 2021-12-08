@@ -3,7 +3,7 @@
 #include "cuda_runtime.h"
 #include "cufft.h"
 #include <device_launch_parameters.h>
-#include "DataReader.h"
+#include "EMReader/DataReader.h"
 
 /*
 cufftResult_t :
@@ -52,9 +52,10 @@ __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,in
 __global__ void apply_weighting_function(cufftComplex *data,Parameters para);
 __global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int l);
 __global__ void normalize(cufftComplex *d_templates,int l,float *means);
-__global__ void rotate_and_split(float *d_image,cufftComplex *d_rotated_image,float e,int nx,int ny,int padding_size,int block_x,int block_y,int overlap);
+__global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,int ny);
+__global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap);
 __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftComplex *IMG, int l, int block_id);
-__global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m);
+__global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,int x_bound, int y_bound);
 __global__ void scale(cufftComplex *data,int l2);
 __global__ void clear_image(cufftComplex *data);
 

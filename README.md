@@ -5,34 +5,49 @@ GPU parallel for isspa, pick particle with CC.
 CPU version from CJ, BeiJing
 
 #### 软件架构
-软件架构说明
-
+./deprated_code/:ignored this file
+./EMReader/: read .hdf and .mrc file(just read data). Extracted from EMAN1.9.
+./Get_sigma_from_template/: ignored this file, to read Sigma from .hdf
+./main => main function 
+./GPU_func.cu(h) => function processed on GPU
+./Makefile => complier
+./run.sh => example for uesd
 
 #### 安装教程
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+1.  install hdf5
+2.  complie with Makefile. HDF5 denpendcy is needed to read .hdf
+3.  ./main + args
 
-#### 使用说明
+#### 参数说明
+This program detect targets with orientations and tanslations.
+--input            input filtered images lstfile with ctf information
+--angpix           input pixel size in angstroms
+--template         input 2D projections templates in .hdf format
+--eulerfile        euler file with euler values
+--phistep          inplane rotation sampling
+--weight           optimized weight with SSNR parmeters.
+--kk               overlapping density parameter, default is 3.
+--first            the first image to process.
+--last             the last image to process.
+--energy           accerlerating voltage in kV.
+--cs               spherical aberration in um.
+--Highres          high resolution cut 
+--Lowres           low resolution cut
+--diameter         target diameter in pixel
+--threshold        cc threshold value, only output LOCs beyond this value
+--output           output lstfile filaname
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+To run on GPU
+--padding_size     size of padded template and raw img will be splitted into
+--device           which GPU will be used
+注意：
+1.padding_size必须大于template的边长，小于raw img短边边长，并且为32的倍数，图像会被分割成为padding_size*padding_size1的子区域，overlap大小为padding_size的13%
+2.padding_size过小会使并行度不足，过大会提高申请存储的时间和overlap的消耗。在显存足够的情况下，padding_size设置为320左右效果较好。但是仍需根据实际实验结果进行调试(数据量大的时候适当增大).
+3.如果不想使程序打印信息，请在Makefile中删除-DDEBUG
+4.使用的时候，所有输入数据与编译出的可执行文件main在同一文件夹下
 
 #### 参与贡献
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+LT & CJ.
 
-
-#### 特技
-
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)

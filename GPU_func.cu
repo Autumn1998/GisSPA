@@ -206,9 +206,8 @@ __global__ void apply_weighting_function(cufftComplex *data,Parameters para)
 		signal=(exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3))/(para.kk+1);
 		Ncurve=exp(para.a*ss*ss+para.b*ss+para.b2)/signal;
 		//euler_w[x]=1.68118*ss;
-		data[i].x=data[i].x*v*sqrt(1/(Ncurve+para.kk*v*v));
+		data[i].x=data[i].x*v*sqrt(1/(Ncurve+para.kk*v*v ));
 	}
-
 }
 
 __device__ float CTF_AST (int x1, int y1, int ny, float ds, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode){
@@ -295,10 +294,10 @@ __global__ void normalize(cufftComplex *data,int l,float *means)
 	float tmp=data[i].x*sinf(data[i].y);
 	data[i].x=data[i].x*cosf(data[i].y);
 	data[i].y=tmp;
+
 }
 
-__global__ void rotate_and_split(float *d_image,cufftComplex *d_rotated_image,float e,
-	int nx,int ny,int padding_size ,int block_x,int block_y,int overlap)
+__global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,int ny)
 {
 	float cose=cos(e*PI/180);
 	float sine=sin(e*PI/180);
@@ -343,68 +342,28 @@ __global__ void rotate_and_split(float *d_image,cufftComplex *d_rotated_image,fl
 		p2=d_image[k2]*t*u;
 		res=p0+p1+p2+p3;
 	}
-
-	int tmp = padding_size - overlap;
 	// res <=> data[i+j*nx] after rotation
-	int bx = i/tmp, rx = i%tmp;
-	int by = j/tmp, ry = j%tmp;
-	
-	//ID of sub area
-	int area_id;
-	int off;
-	//INDEX in sub area
-	int newx,newy;
-	
-	if(bx>=0 && bx<block_x && by>=0 &&by<block_y)
-	{
-		//ID of sub area
-		area_id = block_x*by+bx;
-		off = area_id * padding_size*padding_size;
-		//INDEX in sub area
-		newx = rx;
-		newy = ry;
-		// split into d_rotated_image(cufftComplex)
-		d_rotated_image[off + newx + newy*padding_size].x = res;
-		d_rotated_image[off + newx + newy*padding_size].y = 0;
-	}
-	if(rx < overlap && (bx-1)>=0 && (bx-1)<block_x && by>=0 &&by<block_y)
-	{
-		//ID of sub area
-		area_id = block_x*by+bx-1; 
-		off = area_id * padding_size*padding_size;
-		//INDEX in sub area
-		newx = rx + tmp;
-		newy = ry;
-		// split into d_rotated_image(cufftComplex)
-		d_rotated_image[off + newx + newy*padding_size].x = res;
-		d_rotated_image[off + newx + newy*padding_size].y = 0;
-	}
-	if (ry < overlap && bx>=0 && bx<block_x && (by-1)>=0 && (by-1)<block_y)
-	{
-		//ID of sub area
-		area_id = block_x*(by-1)+bx;
-		off = area_id * padding_size*padding_size;
-		//INDEX in sub area
-		newx = rx;
-		newy = ry + tmp;
-		// split into d_rotated_image(cufftComplex)
-		d_rotated_image[off + newx + newy*padding_size].x = res;
-		d_rotated_image[off + newx + newy*padding_size].y = 0;
-	}
-	if(rx < overlap && ry < overlap && (bx-1)>=0 && (bx-1)<block_x && (by-1)>=0 && (by-1)<block_y)
-	{
-		//ID of sub area
-		area_id = block_x*(by-1)+bx-1;
-		off = area_id * padding_size*padding_size;
-		//INDEX in sub area
-		newx = rx + tmp;
-		newy = ry + tmp;
-		// split into d_rotated_image(cufftComplex)
-		d_rotated_image[off + newx + newy*padding_size].x = res;
-		d_rotated_image[off + newx + newy*padding_size].y = 0;
-	}
+	d_rotated_image[id] = res;
+}
 
+__global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap)
+{
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	int image_size = l*l;
+	int image_id = i/image_size;
+    int local_id = i % image_size;
+    int x = local_id % l;
+    int y = local_id / l;
 
+	int tmp = l - overlap;
+
+	int area_x_id = image_id%bx;
+	int area_y_id = image_id/bx;
+
+	int ori_x = area_x_id*tmp + x;
+	int ori_y = area_y_id*tmp + y;
+	if(ori_x>=nx && ori_y>=ny) return;
+	IMG[i].x = Ori[ori_x + ori_y*nx];
 }
 
 //Tl = template(template has been predefined by C++)
@@ -439,11 +398,12 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 		CCG[i].y *= -1;
 	}
 
+
 }
 
 //"MAX" reduction for *odata : return max{odata[i]},i
 //"SUM" reduction for *odata : return sum{odata[i]},sum{odata[i]^2}
-__global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m)
+__global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,int x_bound,int y_bound)
 {
 	extern __shared__ float sdata[];
     // each thread loads one element from global to shared mem
@@ -454,9 +414,8 @@ __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m)
     int x = local_id % l;
     int y = local_id / l;
 
-
 	sdata[tid] = odata[i].x;
-	if(x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
+	if(x>=x_bound || y>=y_bound ||x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
 	sdata[tid+blockDim.x] = local_id;
 	sdata[tid+2*blockDim.x] = odata[i].x;
 	sdata[tid+3*blockDim.x] = odata[i].x*odata[i].x;

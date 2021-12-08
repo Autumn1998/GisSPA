@@ -1,6 +1,6 @@
-#include "emdata_.h"
-#include "util_func.h"
-#include "DataReader.h"
+#include "EMReader/emdata_.h"
+#include "EMReader/util_func.h"
+#include "EMReader/DataReader.h"
 #include <cuda_runtime.h>
 #include <cufft.h>
 #include "GPU_func.cuh"
@@ -25,7 +25,8 @@ void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t)
     para->dfu=para->defocus+para->dfdiff; //defocus is minus, so abs(dfu) < abs(dfv)
     para->dfv=para->defocus-para->dfdiff;
     para->lambda=12.2639/sqrt(para->energy*1000.0+0.97845*para->energy*para->energy);
-    para->ds=1/(para->apix * i2d_emdata->header.ny);
+    //para->ds=1/(para->apix * i2d_emdata->header.ny);
+    para->ds=1/(para->apix * para->padding_size);
 }
 
 //read template(float *)
@@ -248,6 +249,7 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
 
     apply_weighting_function<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,*para);
     CUDA_CHECK();
+
     compute_area_sum_ofSQR<<<block_num,BLOCK_SIZE,2*BLOCK_SIZE*sizeof(float),*stream>>>(d_templates,d_buf,para->padding_size);
     CUDA_CHECK();
     CUDA_CALL(cudaMemcpyAsync(h_buf, d_buf,2*sizeof(float)*padded_template_size*N/1024, cudaMemcpyDeviceToHost, *stream));
@@ -270,7 +272,7 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
 
 }
 
-void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cudaStream_t *stream,
+void cudaAllocImageMem(float **d_image,float **d_rotated_image,cufftComplex **rotated_splitted_image,cudaStream_t *stream,
     cufftHandle *plan_for_image,int nx,int ny,Parameters *para)
 {
     int tmp = (para->padding_size - para->overlap);
@@ -286,7 +288,8 @@ void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cudaStream
     para->block_y = block_y;
 
     CUDA_CALL(  cudaMalloc(d_image,nx*ny*sizeof(float))  );
-    CUDA_CALL(  cudaMalloc(d_rotated_image,ix*iy*sizeof(cufftComplex))  );
+    CUDA_CALL(  cudaMalloc(d_rotated_image,nx*ny*sizeof(float))  );
+    CUDA_CALL(  cudaMalloc(rotated_splitted_image,ix*iy*sizeof(cufftComplex))  );
 
     /*
 	cufftMakePlanMany(cufftHandle plan, int rank, int *n, int *inembed,
@@ -318,25 +321,26 @@ void init_d_image(float *d_image, emdata *image, int nx, int ny, cudaStream_t *s
     CUDA_CALL(  cudaMemcpyAsync(d_image, image->getData(), sizeof(float)*nx*ny, cudaMemcpyHostToDevice, *stream)  );
 }
 
-void handleImage(float *d_image,cufftComplex *d_rotated_image,Parameters para, float e, cudaStream_t *stream, int nx, int ny)
+void handleImage(float *d_image,float *d_rotated_image,cufftComplex *rotated_splitted_image,Parameters para, float e, cudaStream_t *stream, int nx, int ny)
 {
     int block_num = nx*ny/BLOCK_SIZE;
     //Init d_rotated_imge to all {0}
     int ix = para.block_x;
     int iy = para.block_y;
     int blockIMG_num = ix*iy*para.padding_size*para.padding_size / BLOCK_SIZE;
-    clear_image<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image);
+    clear_image<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image);
     CUDA_CHECK();
     // 1.rotate Image  2.split Image into blocks with overlap
-    rotate_and_split<<<block_num,BLOCK_SIZE,0,*stream>>>(d_image,d_rotated_image,e,nx,ny,para.padding_size,para.block_x,para.block_y,para.overlap);
-    CUDA_CHECK();	
-    
+    rotate_IMG<<<block_num,BLOCK_SIZE,0,*stream>>>(d_image,d_rotated_image,e,nx,ny);
+    CUDA_CHECK();
+    split_IMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image,rotated_splitted_image,nx,ny,para.padding_size,para.block_x,para.overlap);	
+    CUDA_CHECK();
 }
 
-void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *d_rotated_image,Parameters para, 
-    cufftHandle *template_plan, cufftHandle *image_plan,cudaStream_t *stream,int N,float *h_buf,float *d_buf,float *scores)
+void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,Parameters para, 
+    cufftHandle *template_plan, cufftHandle *image_plan,cudaStream_t *stream,int N,float *h_buf,float *d_buf,float *scores, int nx, int ny)
 {           
-
+    int l = (float)para.padding_size;
     long long padded_template_size = para.padding_size*para.padding_size;
     int blockGPU_num = padded_template_size*N/BLOCK_SIZE;
     int blockIMG_num = padded_template_size*para.block_x*para.block_y/BLOCK_SIZE;
@@ -348,14 +352,15 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *d_ro
     memset(scores,0,sizeof(float)*3*N);
 
     //Inplace FFT
-    CUFFT_CALL(  cufftExecC2C(*image_plan, d_rotated_image, d_rotated_image, CUFFT_FORWARD)  );
+    CUFFT_CALL(  cufftExecC2C(*image_plan, rotated_splitted_image, rotated_splitted_image, CUFFT_FORWARD)  );
 
     //Scale IMG to normel size
-    scale<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image,para.padding_size*para.padding_size);
+    scale<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image,para.padding_size*para.padding_size);
     CUDA_CHECK();
 
     //compute score for each block
     for(int j=0;j<para.block_y;j++)
+    {
         for(int i=0;i<para.block_x;i++)
         {
             //find peak need initialize
@@ -364,12 +369,15 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *d_ro
             memset(sums,0,sizeof(float)*N);
             memset(sum2s,0,sizeof(float)*N);
             //compute CCG
-            compute_corner_CCG<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(CCG,d_templates,d_rotated_image,para.padding_size,i+j*para.block_x);
+            compute_corner_CCG<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(CCG,d_templates,rotated_splitted_image,para.padding_size,i+j*para.block_x);
             CUDA_CHECK();
             //Inplace IFT
             CUFFT_CALL(  cufftExecC2C(*template_plan, CCG, CCG, CUFFT_INVERSE)  );
+            //Ingore padded 0 at raw IMG
+            int x_bound = nx - i*(l-para.overlap);
+            int y_bound = ny - j*(l-para.overlap);
             //find peak(position) and get sum of data,data^2
-            get_peak_and_SUM<<<blockGPU_num,BLOCK_SIZE,4*BLOCK_SIZE*sizeof(float),*stream>>>(CCG,d_buf,para.padding_size,para.d_m);
+            get_peak_and_SUM<<<blockGPU_num,BLOCK_SIZE,4*BLOCK_SIZE*sizeof(float),*stream>>>(CCG,d_buf,para.padding_size,para.d_m,x_bound,y_bound);
             CUDA_CHECK();
             CUDA_CALL(cudaMemcpyAsync(h_buf, d_buf, 4*sizeof(float)*padded_template_size*N/1024, cudaMemcpyDeviceToHost, *stream));
             cudaStreamSynchronize(*stream);
@@ -397,16 +405,15 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *d_ro
                 if(scores[3*k] < score)
                 {
                     scores[3*k] = score;
-                    int l = (float)para.padding_size;
                     //cx  
-                    scores[3*k+1] = i*l + (int)pos[k]%l;
+                    scores[3*k+1] = i*(l-para.overlap) + (int)pos[k]%l;
                     //cy
-                    scores[3*k+2] = j*l + (int)pos[k]/l;
+                    scores[3*k+2] = j*(l-para.overlap) + (int)pos[k]/l;
                 }
-                //printf("%d %f %f %f\n",k,scores[3*k],scores[3*k+1],scores[3*k+2]);
+
             }
         }
-
+    }
 }
 
 void writeScoreToDisk(float *scores,Parameters para,EulerData euler,FILE *fp, int nn, char *t, int nx, int ny, float euler3)
@@ -513,8 +520,8 @@ int main(int argc, char *argv[])
 // 2. Split
 // 3. doFFT
 //*************************************************   
-        float *d_image;
-        cufftComplex *d_rotated_image;
+        float *d_image,*d_rotated_image;
+        cufftComplex *rotated_splitted_image;
         //cufft handler for IMG FFT
         cufftHandle plan_for_image;
         //size of IMG
@@ -525,7 +532,7 @@ int main(int argc, char *argv[])
         printf("IMG size: %d %d\n",nx,ny);
 #endif
         
-        cudaAllocImageMem(&d_image,&d_rotated_image,&stream,&plan_for_image,nx,ny,&para);
+        cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,nx,ny,&para);
         //Put Image on GPU
         init_d_image(d_image,image,nx,ny,&stream);
 
@@ -536,7 +543,7 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
             printf("Now euler3 => %f / 360.0\n",euler3);
 #endif 
-            handleImage(d_image,d_rotated_image,para,euler3,&stream,nx,ny);
+            handleImage(d_image,d_rotated_image,rotated_splitted_image,para,euler3,&stream,nx,ny);
             //***************************************************
             //Pick particles from IMG with template
             //1. Calculate ccg
@@ -545,12 +552,12 @@ int main(int argc, char *argv[])
             //4. Output score
             //***************************************************
 
-            pickPartcles(CCG,d_templates,d_rotated_image,para,&plan_for_temp,&plan_for_image,&stream,euler.length,h_reduction_buf,d_reduction_buf,scores);
+            pickPartcles(CCG,d_templates,rotated_splitted_image,para,&plan_for_temp,&plan_for_image,&stream,euler.length,h_reduction_buf,d_reduction_buf,scores,nx,ny);
             cudaStreamSynchronize(stream);
             writeScoreToDisk(scores,para,euler,fp,nn,t,nx,ny,euler3);
         }
         cufftDestroy(plan_for_image);
-        cudaFree(d_rotated_image);
+        cudaFree(rotated_splitted_image);
         cudaFree(d_image);
         delete scores;
         
