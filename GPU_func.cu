@@ -359,10 +359,10 @@ __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int 
 
 	int area_x_id = image_id%bx;
 	int area_y_id = image_id/bx;
-
 	int ori_x = area_x_id*tmp + x;
 	int ori_y = area_y_id*tmp + y;
-	if(ori_x>=nx && ori_y>=ny) return;
+
+	if(ori_x>=nx || ori_y>=ny) return;
 	IMG[i].x = Ori[ori_x + ori_y*nx];
 }
 
