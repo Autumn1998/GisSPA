@@ -529,7 +529,8 @@ int main(int argc, char *argv[])
         int ny = image->header.ny;
 
 #ifdef DEBUG
-        printf("IMG size: %d %d\n",nx,ny);
+        printf("IMG size:           %d %d\n",nx,ny);
+        printf("Number of template: %d\n",euler.length);
 #endif
         
         cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,nx,ny,&para);
