@@ -56,7 +56,7 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
 	para->template_x = tp->header.nx;
     para->template_y = tp->header.ny;
     para->template_z = tp->header.nz;
-    para->overlap = para->padding_size*0.13+1;
+    para->overlap = para->template_x*0.13+1;
     free(tp);
 }
 
@@ -363,7 +363,6 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
     {
         for(int i=0;i<para.block_x;i++)
         {
-            
             //find peak need initialize
             memset(peaks,0,sizeof(float)*N);
             memset(pos,0,sizeof(float)*N);
@@ -403,22 +402,27 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
                 float rb = sum2s[k]-peaks[k]*peaks[k];
                 float rc = padded_template_size - 1;
                 float score = peaks[k]/sqrt(rb/rc - (ra/rc)*(ra/rc));
-
                 if(scores[3*k] < score)
                 {
                     
-                    float cx = i*(l-para.overlap) + (int)pos[k]%l;
-                    float cy = j*(l-para.overlap) + (int)pos[k]/l;
+                    int cx = i*(l-para.overlap) + (int)pos[k]%l;
+                    int cy = j*(l-para.overlap) + (int)pos[k]/l;
+ 
+                    //Rotate (cx,cy) to its soriginal angle
+                    float centerx = (cx-nx/2)*cos(euler3*PI/180)+(cy-ny/2)*sin(euler3*PI/180)+nx/2; // centerx
+                    float centery = (cy-ny/2)*cos(euler3*PI/180)-(cx-nx/2)*sin(euler3*PI/180)+ny/2; // centery
                     
-                    if(cy-para.d_m/3>=0 && cx-para.d_m/3>=0 && cy+para.d_m/3<=ny && cx+para.d_m/3<=nx)
+                    float Ny = para.d_m;
+                    if(cy-Ny/3>=0 && cx-Ny/3>=0 && cy+Ny/3<=ny && cx+Ny/3<=ny)
                     {
-                        //Rotate (cx,cy) to its soriginal angle
-                        scores[3*k+1] = (cx-nx/2)*cos(euler3*PI/180)+(cy-ny/2)*sin(euler3*PI/180)+nx/2; // centerx
-		                scores[3*k+2] = (cy-ny/2)*cos(euler3*PI/180)-(cx-nx/2)*sin(euler3*PI/180)+ny/2; // centery
                         scores[3*k] = score;
+                        scores[3*k+1] = centerx;
+                        scores[3*k+2] = centery;
+                        //if(centerx <Ny/3 || centery<Ny/3 || centerx>(ny-Ny/3) || centery>(ny-Ny/3)) scores[3*k]=0;
                     }
-                    
+
                 }
+
             }
         }
     }
@@ -428,9 +432,9 @@ void writeScoreToDisk(float *scores,Parameters para,EulerData euler,FILE *fp, in
 {
     for(int J=0;J<euler.length;J++)
     {
+        float score = scores[3*J];
         float centerx = scores[3*J+1];
         float centery = scores[3*J+2];
-        float score = scores[3*J];
 
         if(score > para.thres)
         {
@@ -544,7 +548,7 @@ int main(int argc, char *argv[])
 
         //Scores : [1-N]->socre  [N+1-2N]->cx+cy*padding_size
         float *scores = new float[euler.length*3];    
-        for(float euler3=6;euler3<360.0;euler3+=para.phi_step)
+        for(float euler3=0;euler3<360.0;euler3+=para.phi_step)
         {	 
 #ifdef DEBUG
             printf("Now euler3 => %f / 360.0\n",euler3);
