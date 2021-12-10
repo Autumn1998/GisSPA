@@ -56,7 +56,7 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
 	para->template_x = tp->header.nx;
     para->template_y = tp->header.ny;
     para->template_z = tp->header.nz;
-    para->overlap = para->template_x*0.13+1;
+    para->overlap = para->padding_size*0.13+1;
     free(tp);
 }
 
@@ -338,7 +338,7 @@ void handleImage(float *d_image,float *d_rotated_image,cufftComplex *rotated_spl
 }
 
 void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,Parameters para, 
-    cufftHandle *template_plan, cufftHandle *image_plan,cudaStream_t *stream,int N,float *h_buf,float *d_buf,float *scores, int nx, int ny)
+    cufftHandle *template_plan, cufftHandle *image_plan,cudaStream_t *stream,int N,float *h_buf,float *d_buf,float *scores, int nx, int ny, float euler3)
 {           
     int l = (float)para.padding_size;
     long long padded_template_size = para.padding_size*para.padding_size;
@@ -363,6 +363,7 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
     {
         for(int i=0;i<para.block_x;i++)
         {
+            
             //find peak need initialize
             memset(peaks,0,sizeof(float)*N);
             memset(pos,0,sizeof(float)*N);
@@ -402,15 +403,22 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
                 float rb = sum2s[k]-peaks[k]*peaks[k];
                 float rc = padded_template_size - 1;
                 float score = peaks[k]/sqrt(rb/rc - (ra/rc)*(ra/rc));
+
                 if(scores[3*k] < score)
                 {
-                    scores[3*k] = score;
-                    //cx  
-                    scores[3*k+1] = i*(l-para.overlap) + (int)pos[k]%l;
-                    //cy
-                    scores[3*k+2] = j*(l-para.overlap) + (int)pos[k]/l;
+                    
+                    float cx = i*(l-para.overlap) + (int)pos[k]%l;
+                    float cy = j*(l-para.overlap) + (int)pos[k]/l;
+                    
+                    if(cy-para.d_m/3>=0 && cx-para.d_m/3>=0 && cy+para.d_m/3<=ny && cx+para.d_m/3<=nx)
+                    {
+                        //Rotate (cx,cy) to its soriginal angle
+                        scores[3*k+1] = (cx-nx/2)*cos(euler3*PI/180)+(cy-ny/2)*sin(euler3*PI/180)+nx/2; // centerx
+		                scores[3*k+2] = (cy-ny/2)*cos(euler3*PI/180)-(cx-nx/2)*sin(euler3*PI/180)+ny/2; // centery
+                        scores[3*k] = score;
+                    }
+                    
                 }
-
             }
         }
     }
@@ -420,11 +428,8 @@ void writeScoreToDisk(float *scores,Parameters para,EulerData euler,FILE *fp, in
 {
     for(int J=0;J<euler.length;J++)
     {
-        int cx = (int)scores[3*J+1];
-        int cy = (int)scores[3*J+2];
-        //Rotate (cx,cy) to its soriginal angle
-        float centerx = (cx-nx/2)*cos(euler3*PI/180)+(cy-ny/2)*sin(euler3*PI/180)+nx/2; // centerx
-		float centery = (cy-ny/2)*cos(euler3*PI/180)-(cx-nx/2)*sin(euler3*PI/180)+ny/2; // centery
+        float centerx = scores[3*J+1];
+        float centery = scores[3*J+2];
         float score = scores[3*J];
 
         if(score > para.thres)
@@ -539,7 +544,7 @@ int main(int argc, char *argv[])
 
         //Scores : [1-N]->socre  [N+1-2N]->cx+cy*padding_size
         float *scores = new float[euler.length*3];    
-        for(float euler3=0;euler3<360.0;euler3+=para.phi_step)
+        for(float euler3=6;euler3<360.0;euler3+=para.phi_step)
         {	 
 #ifdef DEBUG
             printf("Now euler3 => %f / 360.0\n",euler3);
@@ -553,7 +558,7 @@ int main(int argc, char *argv[])
             //4. Output score
             //***************************************************
 
-            pickPartcles(CCG,d_templates,rotated_splitted_image,para,&plan_for_temp,&plan_for_image,&stream,euler.length,h_reduction_buf,d_reduction_buf,scores,nx,ny);
+            pickPartcles(CCG,d_templates,rotated_splitted_image,para,&plan_for_temp,&plan_for_image,&stream,euler.length,h_reduction_buf,d_reduction_buf,scores,nx,ny,euler3);
             cudaStreamSynchronize(stream);
             writeScoreToDisk(scores,para,euler,fp,nn,t,nx,ny,euler3);
         }
