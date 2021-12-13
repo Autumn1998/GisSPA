@@ -13,12 +13,32 @@ void readEMData(Parameters *para, EulerData *euler)
 	readSNRWeight(para->snr,&para->a,&para->b,&para->b2,&para->bfactor,&para->bfactor2,&para->bfactor3);
 }
 
+//add prefix of inlst to t. 
+//.exp  inlst:../test.lsh  t:a.mrc => t:../a.mrc
+void addPrefix(char *inlst, char *t)
+{
+    int l = strlen(inlst);
+    char prefix[l+50];
+    memset(prefix, 0, (l+50)*sizeof(char));
+    int ed = -1;
+    for(int i = l-1;i>=0;i--) if(inlst[i] == '/') {ed = i; break;}
+    strncpy(prefix,inlst,ed+1);
+    strcat(prefix,t);
+    strcpy(t,prefix);
+#ifdef DEBUG
+    printf("--raw_image        %s\n",t);
+#endif
+}
+
 void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t)
 {
     vector<string> pairs;
     int return_code = readInLst_and_consturctPairs(para->inlst,t,&pairs,nn,n);
     if( return_code < 0) printf("Error %d occured in readRawImage!\n",return_code);
-    
+
+    //add prefix of inlst to t. 
+    //.exp  inlst:../test.lsh  t:a.mrc => t:../a.mrc
+    addPrefix(para->inlst,t);
     i2d_emdata->readImage(t,*nn);
     parsePairs(t,*nn,pairs, &para->defocus, &para->dfdiff, &para->dfang);
     
