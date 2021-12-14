@@ -122,6 +122,11 @@ void readParameters(int argc, char *argv[], Parameters *p)
 void readEulerData(char *eulerf, EulerData *euler)
 {
 	std::ifstream eulerfile(eulerf);
+	if (!eulerfile)
+	{
+		printf("Error => Open euler file failed : %s\n\n",eulerf);
+		return;
+	}
     std::string buf;
     int cnt=0;
 	while(!eulerfile.eof()){	
@@ -136,6 +141,11 @@ void readEulerData(char *eulerf, EulerData *euler)
 void readSNRWeight(char *snr,float* a,float* b,float* b2,float* bfactor,float* bfactor2,float* bfactor3)
 {
 	std::ifstream snr_parm(snr);
+	if (!snr_parm)
+	{
+		printf("Error => Open snr file failed : %s\n\n",snr);
+		return;
+	}
 	string buf;
 	while(!snr_parm.eof()){
 	    getline(snr_parm, buf,'\n');
@@ -192,7 +202,7 @@ int readInLst_and_consturctPairs(char * inlst, char *t, vector<string> *pairs, i
 	return 1;
 }
 
-void parsePairs(char * t, int nn, vector<string> pairs, float *defocus, float *dfdiff, float *dfang)
+void parsePairs( vector<string> pairs, float *defocus, float *dfdiff, float *dfang)
 {
 
 //***************************************************************

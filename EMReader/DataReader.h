@@ -81,6 +81,6 @@ void readSNRWeight(char *snr,float* a,float* b,float* b2,float* bfactor,float* b
 
 int readInLst_and_consturctPairs(char * inlst, char *t, vector<string> *pairs, int *nn, int n);
 
-void parsePairs(char * t, int nn, vector<string> pairs, float *defocus, float *dfdiff, float *dfang);
+void parsePairs( vector<string> pairs, float *defocus, float *dfdiff, float *dfang);
 
 #endif

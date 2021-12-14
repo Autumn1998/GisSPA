@@ -40,7 +40,7 @@ void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t)
     //.exp  inlst:../test.lsh  t:a.mrc => t:../a.mrc
     addPrefix(para->inlst,t);
     i2d_emdata->readImage(t,*nn);
-    parsePairs(t,*nn,pairs, &para->defocus, &para->dfdiff, &para->dfang);
+    parsePairs(pairs, &para->defocus, &para->dfdiff, &para->dfang);
     
     para->dfu=para->defocus+para->dfdiff; //defocus is minus, so abs(dfu) < abs(dfv)
     para->dfv=para->defocus-para->dfdiff;
@@ -483,11 +483,10 @@ int main(int argc, char *argv[])
     EulerData euler;
     
     readParameters(argc,argv,&para);
-    readEMData(&para,&euler);
-
 #ifdef DEBUG
     para.printAllPara();
 #endif
+    readEMData(&para,&euler);
 
     //IMG id
     int nn=0;
