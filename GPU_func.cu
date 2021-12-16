@@ -90,7 +90,6 @@ __global__  void  scale_each(int l,cufftComplex *d_templates,float *ems,double *
 
 	if(d_sigmas[image_id]-0 < EPS && d_sigmas[image_id]-0 >-EPS ) return;
 	d_templates[i].x = (d_templates[i].x - ems[image_id])/d_sigmas[image_id];
-
 }
 
 
@@ -122,6 +121,7 @@ __global__  void  SQRSum_by_circle(cufftComplex *data, float *ra, float *rb, int
 		atomicAdd(&ra[r],data[i].x*data[i].x);
 		atomicAdd(&rb[r],1.0);
 	}
+
 }
 
 __global__  void  whiten_Img(cufftComplex *data, float *ra, float *rb, int l)
@@ -202,37 +202,37 @@ __global__ void apply_weighting_function(cufftComplex *data,Parameters para)
 	float v,signal,Ncurve;
     //apply weighting function
 	if( r_round < l/2 && r_round >= 0){
-		v=CTF_AST(x,(y+l/2)%l,l,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
+		v=CTF_AST(x,(y+l/2)%l,l,l,para.apix,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
 		signal=(exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3))/(para.kk+1);
 		Ncurve=exp(para.a*ss*ss+para.b*ss+para.b2)/signal;
 		//euler_w[x]=1.68118*ss;
 		data[i].x=data[i].x*v*sqrt(1/(Ncurve+para.kk*v*v ));
 	}
+	
 }
 
-__device__ float CTF_AST (int x1, int y1, int ny, float ds, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode){
+__device__ float CTF_AST (int x1, int y1,int nx, int ny, float apix, float ds, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode){
 	float v,ss,ag,gamma,df_ast;
+	if(x1 > nx/2) 
+	{
+		x1 = nx-x1;
+		y1 = ny-y1;
+	}
+	ss = ( x1*x1/(float)(nx*nx) + y1*y1/(float)(ny*ny) )/ (apix*apix);
+	//ss = hypotf((float)x1,(float)y1-ny/2)*ds*hypotf((float)x1,(float)y1-ny/2)*ds;
+	ag=atan2(float(y1-ny/2),float(x1));
+	df_ast=0.5*(dfu+dfv+2*dfdiff*cosf(2*(dfang*PI/180-ag)));
+	gamma=-2*PI*(cs*2.5e6*lambda*lambda*lambda*ss*ss+df_ast*5000.0*lambda*ss);
 	if (mode==0){
-		ss=hypotf((float)x1,(float)y1-ny/2)*ds;
-		ag=atan2(float(y1-ny/2),float(x1));
-		df_ast=0.5*(dfu+dfv+2*dfdiff*cosf(2*(dfang*PI/180-ag)));
-		gamma=-2*PI*(cs*2.5e6*lambda*lambda*lambda*ss*ss*ss*ss+df_ast*5000.0*lambda*ss*ss);
 		v=(sqrtf(1.0-ampconst*ampconst)*sinf(gamma)+ampconst*cosf(gamma))>0?1.0:-1.0;		//do flipphase
 	}
 	else if (mode==2){
-		ss=hypotf((float)x1,(float)y1-ny/2)*ds;
-		ag=atan2(float(y1-ny/2),float(x1));
-		df_ast=0.5*(dfu+dfv+2*dfdiff*cosf(2*(dfang*PI/180-ag)));
-		gamma=-2*PI*(cs*2.5e6*lambda*lambda*lambda*ss*ss*ss*ss+df_ast*5000.0*lambda*ss*ss);
 		v=fabs(sqrtf(1.0-ampconst*ampconst)*sinf(gamma)+ampconst*cosf(gamma));		//	return abs ctf value
 	}
 	else{
-		ss=hypotf((float)x1,(float)y1-ny/2)*ds;
-		ag=atan2(float(y1-ny/2),float(x1));
-		df_ast=0.5*(dfu+dfv+2*dfdiff*cosf(2*(dfang*PI/180-ag)));
-		gamma=-2*PI*(cs*2.5e6*lambda*lambda*lambda*ss*ss*ss*ss+df_ast*5000.0*lambda*ss*ss);
 		v=(sqrtf(1.0-ampconst*ampconst)*sinf(gamma)+ampconst*cosf(gamma));		//	return ctf value
 	}
+	
 	return v;
 }
 
@@ -294,7 +294,6 @@ __global__ void normalize(cufftComplex *data,int l,float *means)
 	float tmp=data[i].x*sinf(data[i].y);
 	data[i].x=data[i].x*cosf(data[i].y);
 	data[i].y=tmp;
-
 }
 
 __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,int ny)
@@ -317,7 +316,7 @@ __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,
 	if (x2<0||x2>nx-1.0||y2<0||y2>ny-1.0) res=0;
 	else
 	{
-		float ii,jj;
+		int ii,jj;
 		int k0,k1,k2,k3;
 		float t,u,p0,p1,p2,p3;
 		ii=floor(x2);
@@ -341,9 +340,12 @@ __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,
 		p3=d_image[k3]*tt*u;
 		p2=d_image[k2]*t*u;
 		res=p0+p1+p2+p3;
+
 	}
+
 	// res <=> data[i+j*nx] after rotation
 	d_rotated_image[id] = res;
+
 }
 
 __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap)
@@ -457,6 +459,34 @@ __global__ void clear_image(cufftComplex *data)
 	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
 	data[i].x = 0;
 	data[i].y = 0;
+}
+
+__global__ void Complex2float(float *f, cufftComplex *c, int nx, int ny)
+{
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	if(i >= nx*ny) return;
+	f[i] = c[i].x;
+}
+
+__global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny)
+{
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	if(i >= nx*ny) return;
+	c[i].x = f[i] ;
+	c[i].y = 0 ;
+}
+
+__global__ void phase_flip(cufftComplex *filter, Parameters para, int nx, int ny)
+{
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	if(i >= nx*ny) return;
+    int x = i % nx;
+    int y = i / nx;
+	float v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,0);
+
+	filter[i].x *= v;
+	filter[i].y *= v;
+
 }
 
 void cudaMemoryTest()

@@ -6,6 +6,9 @@
 #include "GPU_func.cuh"
 #include <malloc.h>
 #include <cmath>
+#include <iostream>
+
+using namespace std;
 
 void readEMData(Parameters *para, EulerData *euler)
 {
@@ -293,7 +296,7 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
 }
 
 void cudaAllocImageMem(float **d_image,float **d_rotated_image,cufftComplex **rotated_splitted_image,cudaStream_t *stream,
-    cufftHandle *plan_for_image,int nx,int ny,Parameters *para)
+    cufftHandle *plan_for_image,cufftHandle *plan_for_whole_IMG,int nx,int ny,Parameters *para)
 {
     int tmp = (para->padding_size - para->overlap);
     //num of blocks in x,y axis
@@ -327,23 +330,44 @@ void cudaAllocImageMem(float **d_image,float **d_rotated_image,cufftComplex **ro
     int batch = block_x*block_y;//批量处理的批数
     //采用cufftPlanMany方法
     
-    //FFT handler for all templates
+    //FFT handler for all sub images
     CUFFT_CALL(cufftPlanMany(plan_for_image, rank, n, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, batch));//针对多信号同时进行FFT
     //Binding stream to plan
     CUFFT_CALL(cufftSetStream(*plan_for_image, *stream));
+
+    //FFT handler for single whole images
+    CUFFT_CALL(cufftPlan2d(plan_for_whole_IMG,nx,ny,CUFFT_C2C));
+    //Binding stream to plan
+    CUFFT_CALL(cufftSetStream(*plan_for_whole_IMG, *stream));
 }  
 
-void init_d_image(float *d_image, emdata *image, int nx, int ny, cudaStream_t *stream)
+void init_d_image(Parameters para,cufftComplex *filter,float *d_image, emdata *image, int nx, int ny, cudaStream_t *stream,cufftHandle *plan_for_whole_IMG)
 {
     //Translate origin of Image to (0,0)
     image->rotate(0);
     //Put Image on GPU
     CUDA_CALL(  cudaMemcpyAsync(d_image, image->getData(), sizeof(float)*nx*ny, cudaMemcpyHostToDevice, *stream)  );
+    
+    int block_num = nx*ny/BLOCK_SIZE;
+    float2Complex<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,d_image,nx,ny);
+    //fft inplace
+    CUFFT_CALL(cufftExecC2C(*plan_for_whole_IMG, filter, filter, CUFFT_FORWARD));
+    scale<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,nx*ny);
+    CUDA_CHECK();
+
+    //phase flip
+    phase_flip<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,para,nx,ny);
+    CUDA_CHECK();
+
+    //ifft inplace
+    CUFFT_CALL(cufftExecC2C(*plan_for_whole_IMG, filter, filter, CUFFT_INVERSE));
+    Complex2float<<<block_num,BLOCK_SIZE,0,*stream>>>(d_image,filter,nx,ny);
+
 }
 
 void handleImage(float *d_image,float *d_rotated_image,cufftComplex *rotated_splitted_image,Parameters para, float e, cudaStream_t *stream, int nx, int ny)
 {
-    int block_num = nx*ny/BLOCK_SIZE;
+    int block_num = nx*ny/BLOCK_SIZE+1;
     //Init d_rotated_imge to all {0}
     int ix = para.block_x;
     int iy = para.block_y;
@@ -422,18 +446,18 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
                 float rb = sum2s[k]-peaks[k]*peaks[k];
                 float rc = padded_template_size - 1;
                 float score = peaks[k]/sqrt(rb/rc - (ra/rc)*(ra/rc));
+                
+                int cx = i*(l-para.overlap) + (int)pos[k]%l;
+                int cy = j*(l-para.overlap) + (int)pos[k]/l;
+
+                //Rotate (cx,cy) to its soriginal angle
+                float centerx = (cx-nx/2)*cos(euler3*PI/180)+(cy-ny/2)*sin(euler3*PI/180)+nx/2; // centerx
+                float centery = (cy-ny/2)*cos(euler3*PI/180)-(cx-nx/2)*sin(euler3*PI/180)+ny/2; // centery
+
                 if(scores[3*k] < score)
-                {
-                    
-                    int cx = i*(l-para.overlap) + (int)pos[k]%l;
-                    int cy = j*(l-para.overlap) + (int)pos[k]/l;
- 
-                    //Rotate (cx,cy) to its soriginal angle
-                    float centerx = (cx-nx/2)*cos(euler3*PI/180)+(cy-ny/2)*sin(euler3*PI/180)+nx/2; // centerx
-                    float centery = (cy-ny/2)*cos(euler3*PI/180)-(cx-nx/2)*sin(euler3*PI/180)+ny/2; // centery
-                    
-                    float Ny = para.d_m;
-                    if(cy-Ny/3>=0 && cx-Ny/3>=0 && cy+Ny/3<=ny && cx+Ny/3<=ny)
+                {                    
+                    //float Ny = para.d_m;
+                    //if(cy-Ny/3>=0 && cx-Ny/3>=0 && cy+Ny/3<=ny && cx+Ny/3<=nx)
                     {
                         scores[3*k] = score;
                         scores[3*k+1] = centerx;
@@ -550,8 +574,8 @@ int main(int argc, char *argv[])
 //*************************************************   
         float *d_image,*d_rotated_image;
         cufftComplex *rotated_splitted_image;
-        //cufft handler for IMG FFT
-        cufftHandle plan_for_image;
+        //cufft handler for sub-IMGs and whole-IMG FFT
+        cufftHandle plan_for_image,plan_for_whole_IMG;
         //size of IMG
         int nx = image->header.nx;
         int ny = image->header.ny;
@@ -561,9 +585,9 @@ int main(int argc, char *argv[])
         printf("Number of template: %d\n",euler.length);
 #endif
         
-        cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,nx,ny,&para);
-        //Put Image on GPU
-        init_d_image(d_image,image,nx,ny,&stream);
+        cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,&para);
+        //1.Put Image on GPU 2.phaseflip
+        init_d_image(para,rotated_splitted_image,d_image,image,nx,ny,&stream,&plan_for_whole_IMG);
 
         //Scores : [1-N]->socre  [N+1-2N]->cx+cy*padding_size
         float *scores = new float[euler.length*3];    
@@ -572,6 +596,7 @@ int main(int argc, char *argv[])
 #ifdef DEBUG
             printf("Now euler3 => %f / 360.0\n",euler3);
 #endif 
+            // 1.rotate Image  2.split Image into blocks with overlap
             handleImage(d_image,d_rotated_image,rotated_splitted_image,para,euler3,&stream,nx,ny);
             //***************************************************
             //Pick particles from IMG with template
@@ -585,6 +610,7 @@ int main(int argc, char *argv[])
             cudaStreamSynchronize(stream);
             writeScoreToDisk(scores,para,euler,fp,nn,t,nx,ny,euler3);
         }
+        cufftDestroy(plan_for_whole_IMG);
         cufftDestroy(plan_for_image);
         cudaFree(rotated_splitted_image);
         cudaFree(d_image);
