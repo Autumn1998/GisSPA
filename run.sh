@@ -20,7 +20,8 @@ if [ $1 == '0' ]; then
         --threshold 7 \
         --output Output/test_out.lst \
         --padding_size 256 \
-        --device 0  
+        --device 0 \ 
+        --phase_flip 1
 
 # Test Data 2
 # Template:182*182*2295    Raw Image:5760*4092
@@ -42,11 +43,12 @@ elif [ $1 == '1' ]; then
         --threshold 7 \
         --output  Output/test_out.lst \
         --padding_size 320 \
-        --device 0
+        --device 0 \ 
+        --phase_flip 1
 
 # Test  performance 
 elif [ $1 == '2' ]; then
-nvprof ./main --input Data/Data_2/test.lst \
+sudo nvprof ./main --input Data/Data_2/test.lst \
         --angpix 1.688 \
         --template Data/Data_2/emd_9976_apix3p336_proj.hdf \
         --eulerfile  Data/Data_2/proj_step3_c2.lst \
@@ -63,5 +65,6 @@ nvprof ./main --input Data/Data_2/test.lst \
         --threshold 7 \
         --output  Output/test_out.lst \
         --padding_size 320 \
-        --device 0
+        --device 0 \ 
+        --phase_flip 1
 fi
