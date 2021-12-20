@@ -476,7 +476,7 @@ __global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny)
 	c[i].y = 0 ;
 }
 
-__global__ void phase_flip(cufftComplex *filter, Parameters para, int nx, int ny)
+__global__ void do_phase_flip(cufftComplex *filter, Parameters para, int nx, int ny)
 {
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
 	if(i >= nx*ny) return;
