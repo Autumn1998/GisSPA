@@ -170,11 +170,11 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
     //apply weighting function
 	if( r < l/2 && r >= 0){
 		v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
-		signal=(exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3))/(para.kk+1);
-		Ncurve=exp(para.a*ss*ss+para.b*ss+para.b2)/signal;
+		signal=(exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3));
+		Ncurve=exp(para.a*ss*ss+para.b*ss+para.b2);
 
-		data[i].x=data[i].x*sqrt((signal*v*v+Ncurve)/signal)/sqrt(ra[x]/rb[x]);
-		if(x>(nx*para.apix/6)) data[i].x=data[i].x*exp(-100*ss*ss);
+		data[i].x=data[i].x*sqrt((signal*v*v+Ncurve)/signal)/sqrt(ra[r]/rb[r]);
+		if(r>(l*para.apix/6)) data[i].x=data[i].x*exp(-100*ss*ss);
 	}
 
 	// low pass
@@ -190,9 +190,10 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 
     //apply weighting function
 	if( r < l/2 && r >= 0){
+		signal/=(para.kk+1);
+		Ncurve/=signal;
 		data[i].x=data[i].x*sqrt(1/(Ncurve+para.kk*v*v ));
 	}
-
 }
 
 __global__ void normalize_Img(cufftComplex *data,int nx, int ny,float mean)

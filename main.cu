@@ -383,6 +383,7 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
             infile_mean += h_buf[2*k];
             counts += h_buf[2*k+1];
         }
+            
         infile_mean =  sqrtf(infile_mean/(counts*counts));
         //Do Normalization 
         normalize_Img<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,nx,ny,infile_mean);
@@ -509,7 +510,8 @@ void writeScoreToDisk(float *scores,Parameters para,EulerData euler,FILE *fp, in
         float score = scores[3*J];
         float centerx = scores[3*J+1];
         float centery = scores[3*J+2];
-
+        //if(J == 112 && euler3 == 326.0) printf("%d\t%s\tdefocus=%f\tdfdiff=%f\tdfang=%f\teuler=%f,%f,%f\tcenter=%f,%f\tscore=%f\n",
+        //            nn,t,(-1)*para.defocus,para.dfdiff,para.dfang,euler.euler1[J],euler.euler2[J],euler3,centerx,centery,score);
         if(score > para.thres)
         {
             fprintf(fp, "%d\t%s\tdefocus=%f\tdfdiff=%f\tdfang=%f\teuler=%f,%f,%f\tcenter=%f,%f\tscore=%f\n",
