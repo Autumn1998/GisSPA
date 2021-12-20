@@ -30,6 +30,7 @@ struct Parameters
 	int template_x = 0;
 	int template_y = 0;
 	int template_z = 0;
+	int phase_flip = 0;
 
 	int block_x = 0;
 	int block_y = 0;
@@ -55,6 +56,7 @@ struct Parameters
 		printf("--diameter         %f\n",d_m);
 		printf("--padding_size     %d\n",padding_size);
 		printf("--device_id        %d\n",device_id);
+		printf("--phase_flip       %d\n",phase_flip);
 		//printf("--sigma file       %s\n",sigma_path);
 	}
 #endif

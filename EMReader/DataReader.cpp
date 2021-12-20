@@ -32,6 +32,11 @@ void readParameters(int argc, char *argv[], Parameters *p)
 			strcpy(p->snr, argv[i]);
 			continue;
 		}
+		if(option.compare("--sigma_file")==0){
+			i++;
+			strcpy(p->sigma_path, argv[i]);
+			continue;
+		}
 		if(option.compare("--kk")==0){
 			i++;
 			p->kk=atof(argv[i]);
@@ -97,9 +102,9 @@ void readParameters(int argc, char *argv[], Parameters *p)
 			p->padding_size=atoi(argv[i]);
 			continue;
 		}
-		if(option.compare("--sigma_file")==0){
+		if(option.compare("--phase_flip")==0){
 			i++;
-			strcpy(p->sigma_path, argv[i]);
+			p->phase_flip=atoi(argv[i]);
 			continue;
 		}
 		printf("Undefined option: %s .Abort.\n",argv[i]);
