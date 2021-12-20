@@ -92,15 +92,17 @@ __global__  void  scale_each(int l,cufftComplex *d_templates,float *ems,double *
 	d_templates[i].x = (d_templates[i].x - ems[image_id])/d_sigmas[image_id];
 }
 
-
-__global__  void  SQRSum_by_circle(cufftComplex *data, float *ra, float *rb, int l)
+//mode = 0 (default)  for template
+//mode = 1 for raw image
+__global__  void  SQRSum_by_circle(cufftComplex *data, float *ra, float *rb, int nx, int ny, int mode)
 {
     // i <==> global ID
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
-    int image_size = l*l;
+    int image_size = nx*ny;
+	if(mode == 1 && i>=image_size) return;
     int local_id = i % image_size;
-    int x = local_id % l;
-    int y = local_id / l;
+    int x = local_id % nx;
+    int y = local_id / nx;
 
     float tmp;
 	// ri2ap
@@ -110,25 +112,25 @@ __global__  void  SQRSum_by_circle(cufftComplex *data, float *ra, float *rb, int
 	else data[i].y=atan2(data[i].y,data[i].x);
 	data[i].x=tmp;
 
-	if(x>l/2) return;
+	if(x>nx/2) return;
 
     //calculate the number of point with fixed distance ('r') from center 
-	int r = floor( hypotf(min(y,l-y) ,min(x,l-x)) + 0.5) - 1;
+	int r = floor( hypotf(min(y,ny-y) ,min(x,nx-x)) + 0.5) - 1;
 
-	if (r < l/2 && r >= 0) {
+	if (r < max(nx,ny)/2 && r >= 0) {
 		//Add offset
-		r+= (l/2)*(i/image_size);
+		r+= RA_SIZE*(i/image_size);
 		atomicAdd(&ra[r],data[i].x*data[i].x);
 		atomicAdd(&rb[r],1.0);
 	}
 
 }
 
-__global__  void  whiten_Img(cufftComplex *data, float *ra, float *rb, int l)
+__global__  void  whiten_Tmp(cufftComplex *data, float *ra, float *rb, int l)
 {
     // i <==> global ID
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
-    int image_size = l*l;
+    int image_size = l*l;  
     int local_id = i % image_size;
     int x = local_id % l;
     int y = local_id / l;
@@ -136,7 +138,7 @@ __global__  void  whiten_Img(cufftComplex *data, float *ra, float *rb, int l)
 
 	if (r < l/2 && r >= 0) {
 		//Add offset
-		r+= (l/2)*(i/image_size);
+		r+= RA_SIZE*(i/image_size);
 		float fb_infile=ra[r]/rb[r];
 		data[i].x=data[i].x/(float)sqrt(fb_infile);
 	}
@@ -146,6 +148,65 @@ __global__  void  whiten_Img(cufftComplex *data, float *ra, float *rb, int l)
 	data[i].x=data[i].x*cosf(data[i].y);
 	data[i].y=tmp;
 
+}
+
+
+__global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float *rb, int nx, int ny, Parameters para)
+{
+    // i <==> global ID
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+    int image_size = nx*ny;  
+	if(i>=image_size) return;
+    int local_id = i % image_size;
+    int x = local_id % nx;
+    int y = local_id / nx;
+
+	float rf = hypotf(min(y,ny-y) ,min(x,nx-x));
+	int r = floor( rf + 0.5) - 1;
+	float ss=rf*para.ds;
+	int l = max(nx,ny);
+
+	float v,signal,Ncurve;
+    //apply weighting function
+	if( r < l/2 && r >= 0){
+		v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
+		signal=(exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3))/(para.kk+1);
+		Ncurve=exp(para.a*ss*ss+para.b*ss+para.b2)/signal;
+
+		data[i].x=data[i].x*sqrt((signal*v*v+Ncurve)/signal)/sqrt(ra[x]/rb[x]);
+		if(x>(nx*para.apix/6)) data[i].x=data[i].x*exp(-100*ss*ss);
+	}
+
+	// low pass
+	if (r<l*para.apix/para.highres && r >= l*para.apix/para.lowres) {}
+	else if(r>=l*para.apix/para.highres && r<l*para.apix/para.highres+8){
+		data[i].x=data[i].x*(0.5*cosf(PI*(r-l*para.apix/para.highres)/(2*8))+0.5);
+	}
+	else if(r>=(l*para.apix/para.lowres-8) && r<l*para.apix/para.lowres && r>=0){
+		data[i].x=data[i].x*(0.5*cosf(PI*(l*para.apix/para.lowres-r)/(2*8))+0.5);
+	}
+	else
+		data[i].x=0;
+
+    //apply weighting function
+	if( r < l/2 && r >= 0){
+		data[i].x=data[i].x*sqrt(1/(Ncurve+para.kk*v*v ));
+	}
+
+}
+
+__global__ void normalize_Img(cufftComplex *data,int nx, int ny,float mean)
+{
+    // i <==> global ID
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	if(i >= nx*ny) return;
+
+	if(mean!=0)	data[i].x=data[i].x/mean;
+
+	//ap2ri
+	float tmp=data[i].x*sinf(data[i].y);
+	data[i].x=data[i].x*cosf(data[i].y);
+	data[i].y=tmp;
 }
 
 __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,int l)
@@ -236,23 +297,30 @@ __device__ float CTF_AST (int x1, int y1,int nx, int ny, float apix, float ds, f
 	return v;
 }
 
-__global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int l)
+//mode = 0 (default)  for template
+//mode = 1 for raw image
+__global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int nx, int ny, int mode)
 {
 	extern __shared__ float sdata[];
     // each thread loads one element from global to shared mem
     int tid = threadIdx.x;
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
-    int image_size = l*l;
+    int image_size = nx*ny;
     int local_id = i % image_size;
-    int x = local_id % l;
-    int y = local_id / l;
-	int r = floor( hypotf(min(y,l-y) ,min(x,l-x)) + 0.5) - 1;
+    int x = local_id % nx;
+    int y = local_id / nx;
+	int r = floor( hypotf(min(y,ny-y) ,min(x,nx-x)) + 0.5) - 1;
+	int l = max(nx,ny);
 
-	if (r < l/2 && r >= 0 && x<=l/2) {
+	if (r < l/2 && r >= 0 && x<=l/2 && mode ==0) {
 		sdata[tid] = data[i].x*data[i].x;
 		sdata[tid+blockDim.x] = 1;
 	}
-	else 
+	else if(mode == 1 && i<nx*ny)
+	{
+		sdata[tid] = data[i].x*data[i].x;
+		sdata[tid+blockDim.x] = 1;
+	}else
 	{
 		sdata[tid]=0;
 		sdata[tid+blockDim.x] = 0;
@@ -281,11 +349,11 @@ __global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int l)
 	}
 }
 
-__global__ void normalize(cufftComplex *data,int l,float *means)
+__global__ void normalize(cufftComplex *data,int nx, int ny,float *means)
 {
     // i <==> global ID
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
-    int image_size = l*l;
+    int image_size = nx*ny;
 	int template_id = i / image_size;
 
 	if(means[template_id]!=0)	data[i].x=data[i].x/means[template_id];

@@ -28,6 +28,7 @@ cufftResult_t :
 #define EPS 1e-8
 #define PI (3.141592654)
 #define BLOCK_SIZE 1024
+#define RA_SIZE 5000
 #ifdef DEBUG
 #define CUDA_CALL(F)  if( (F) != cudaSuccess ) \
   {printf("Error %s at %s:%d\n", cudaGetErrorString(cudaGetLastError()), \
@@ -46,12 +47,14 @@ __global__ void UpdateSigma(cufftComplex *d_templates,float *d_buf);
 __global__ void generate_mask(int l,cufftComplex *mask,float r,float *d_buf,float up,float low);
 __global__ void multiCount_dot(int l,cufftComplex *mask,cufftComplex *d_templates,float *constants,float *res);
 __global__ void scale_each(int l,cufftComplex *d_templates,float *ems,double *d_sigmas);
-__global__ void SQRSum_by_circle(cufftComplex *data, float *ra, float *rb, int l);
-__global__ void whiten_Img(cufftComplex *data, float *ra, float *rb, int l);
+__global__ void SQRSum_by_circle(cufftComplex *data, float *ra, float *rb, int nx, int ny, int mode=0);
+__global__ void whiten_Tmp(cufftComplex *data, float *ra, float *rb, int l);
+__global__ void whiten_filetr_weight_Img(cufftComplex *data, float *ra, float *rb, int nx, int ny, Parameters para);
 __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,int l);
 __global__ void apply_weighting_function(cufftComplex *data,Parameters para);
-__global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int l);
-__global__ void normalize(cufftComplex *d_templates,int l,float *means);
+__global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int nx, int ny,int mode = 0);
+__global__ void normalize(cufftComplex *d_templates,int nx, int ny,float *means);
+__global__ void normalize_Img(cufftComplex *data,int nx, int ny,float mean);
 __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,int ny);
 __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap);
 __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftComplex *IMG, int l, int block_id);
