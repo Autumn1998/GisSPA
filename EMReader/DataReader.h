@@ -31,6 +31,7 @@ struct Parameters
 	int template_y = 0;
 	int template_z = 0;
 	int phase_flip = 0;
+	float ds_Img = 0;
 
 	int block_x = 0;
 	int block_y = 0;

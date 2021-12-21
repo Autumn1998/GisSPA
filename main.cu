@@ -48,7 +48,7 @@ void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t)
     para->dfu=para->defocus+para->dfdiff; //defocus is minus, so abs(dfu) < abs(dfv)
     para->dfv=para->defocus-para->dfdiff;
     para->lambda=12.2639/sqrt(para->energy*1000.0+0.97845*para->energy*para->energy);
-    //para->ds=1/(para->apix * i2d_emdata->header.ny);
+    //para->ds_Img=1/(para->apix * max(i2d_emdata->header.ny,i2d_emdata->header.nx));
     para->ds=1/(para->apix * para->padding_size);
 }
 
@@ -362,6 +362,8 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
         CUDA_CHECK();
 
         //Whiten at fourier space
+        clear_float<<<block_num,BLOCK_SIZE,0,*stream>>>(ra);
+        clear_float<<<block_num,BLOCK_SIZE,0,*stream>>>(rb);
         SQRSum_by_circle<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,ra,rb,nx,ny,1);
         CUDA_CHECK();
 
@@ -383,8 +385,9 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
             infile_mean += h_buf[2*k];
             counts += h_buf[2*k+1];
         }
-            
+        
         infile_mean =  sqrtf(infile_mean/(counts*counts));
+        
         //Do Normalization 
         normalize_Img<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,nx,ny,infile_mean);
         CUDA_CHECK();

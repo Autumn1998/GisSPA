@@ -163,20 +163,25 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 
 	float rf = hypotf(min(y,ny-y) ,min(x,nx-x));
 	int r = floor( rf + 0.5) - 1;
-	float ss=rf*para.ds;
+	if(x > nx/2) 
+	{
+		x = nx-x;
+		y = ny-y;
+	}
+	float ss = sqrtf( ( x*x/(float)(nx*nx) + y*y/(float)(ny*ny) )/ (para.apix*para.apix) );
 	int l = max(nx,ny);
 
 	float v,signal,Ncurve;
     //apply weighting function
 	if( r < l/2 && r >= 0){
-		v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
-		signal=(exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3));
+		v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
+		signal=exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3);
 		Ncurve=exp(para.a*ss*ss+para.b*ss+para.b2);
 
 		data[i].x=data[i].x*sqrt((signal*v*v+Ncurve)/signal)/sqrt(ra[r]/rb[r]);
 		if(r>(l*para.apix/6)) data[i].x=data[i].x*exp(-100*ss*ss);
 	}
-
+	
 	// low pass
 	if (r<l*para.apix/para.highres && r >= l*para.apix/para.lowres) {}
 	else if(r>=l*para.apix/para.highres && r<l*para.apix/para.highres+8){
@@ -194,6 +199,7 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 		Ncurve/=signal;
 		data[i].x=data[i].x*sqrt(1/(Ncurve+para.kk*v*v ));
 	}
+
 }
 
 __global__ void normalize_Img(cufftComplex *data,int nx, int ny,float mean)
@@ -207,7 +213,7 @@ __global__ void normalize_Img(cufftComplex *data,int nx, int ny,float mean)
 	//ap2ri
 	float tmp=data[i].x*sinf(data[i].y);
 	data[i].x=data[i].x*cosf(data[i].y);
-	data[i].y=tmp;
+	data[i].y=tmp;	
 }
 
 __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,int l)
@@ -264,7 +270,7 @@ __global__ void apply_weighting_function(cufftComplex *data,Parameters para)
 	float v,signal,Ncurve;
     //apply weighting function
 	if( r_round < l/2 && r_round >= 0){
-		v=CTF_AST(x,(y+l/2)%l,l,l,para.apix,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
+		v=CTF_AST(x,(y+l/2)%l,l,l,para.apix,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
 		signal=(exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3))/(para.kk+1);
 		Ncurve=exp(para.a*ss*ss+para.b*ss+para.b2)/signal;
 		//euler_w[x]=1.68118*ss;
@@ -273,7 +279,7 @@ __global__ void apply_weighting_function(cufftComplex *data,Parameters para)
 	
 }
 
-__device__ float CTF_AST (int x1, int y1,int nx, int ny, float apix, float ds, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode){
+__device__ float CTF_AST (int x1, int y1,int nx, int ny, float apix, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode){
 	float v,ss,ag,gamma,df_ast;
 	if(x1 > nx/2) 
 	{
@@ -313,15 +319,11 @@ __global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int nx, int
 	int r = floor( hypotf(min(y,ny-y) ,min(x,nx-x)) + 0.5) - 1;
 	int l = max(nx,ny);
 
-	if (r < l/2 && r >= 0 && x<=l/2 && mode ==0) {
+	if (r < l/2 && r >= 0 && x<=nx/2 && (mode ==0||mode == 1 && i<nx*ny)) {
 		sdata[tid] = data[i].x*data[i].x;
 		sdata[tid+blockDim.x] = 1;
 	}
-	else if(mode == 1 && i<nx*ny)
-	{
-		sdata[tid] = data[i].x*data[i].x;
-		sdata[tid+blockDim.x] = 1;
-	}else
+	else
 	{
 		sdata[tid]=0;
 		sdata[tid+blockDim.x] = 0;
@@ -530,6 +532,12 @@ __global__ void clear_image(cufftComplex *data)
 	data[i].y = 0;
 }
 
+__global__ void clear_float(float *data)
+{
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	data[i] = 0;
+}
+
 __global__ void Complex2float(float *f, cufftComplex *c, int nx, int ny)
 {
 	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -543,6 +551,7 @@ __global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny)
 	if(i >= nx*ny) return;
 	c[i].x = f[i] ;
 	c[i].y = 0 ;
+
 }
 
 __global__ void do_phase_flip(cufftComplex *filter, Parameters para, int nx, int ny)
@@ -551,7 +560,7 @@ __global__ void do_phase_flip(cufftComplex *filter, Parameters para, int nx, int
 	if(i >= nx*ny) return;
     int x = i % nx;
     int y = i / nx;
-	float v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.ds,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,0);
+	float v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,0);
 
 	filter[i].x *= v;
 	filter[i].y *= v;

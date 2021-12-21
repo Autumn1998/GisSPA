@@ -61,11 +61,12 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,int x_bound, int y_bound);
 __global__ void scale(cufftComplex *data,int l2);
 __global__ void clear_image(cufftComplex *data);
+__global__ void clear_float(float *data);
 __global__ void Complex2float(float *f, cufftComplex *c, int nx, int ny);
 __global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny);
 __global__ void do_phase_flip(cufftComplex *filter, Parameters para, int nx, int ny);
 
-__device__ float CTF_AST(int x1, int y1, int nx, int ny, float apix, float ds, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode);
+__device__ float CTF_AST(int x1, int y1, int nx, int ny, float apix, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode);
 
 void cudaMemoryTest();
 #endif

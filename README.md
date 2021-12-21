@@ -37,6 +37,7 @@ This program detect targets with orientations and tanslations.
 --diameter         :target diameter in pixel  
 --threshold        :cc threshold value, only output LOCs beyond this value  
 --output           :output lstfile filaname  
+--phase_flip       :whether do "phase_file" to RAW IMG. 
 
 To run on GPU  
 --padding_size     :size of padded template and raw img will be splitted into  
