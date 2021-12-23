@@ -160,19 +160,14 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
     int local_id = i % image_size;
     int x = local_id % nx;
     int y = local_id / nx;
-
-	float rf = hypotf(min(y,ny-y) ,min(x,nx-x));
-	int r = floor( rf + 0.5) - 1;
-	if(x > nx/2) 
-	{
-		x = nx-x;
-		y = ny-y;
-	}
-	float ss = sqrtf( ( x*x/(float)(nx*nx) + y*y/(float)(ny*ny) )/ (para.apix*para.apix) );
+	
+	float dx = min(x,nx-x);
+	float dy = min(y,ny-y);
+	int r = floor( hypotf(dx ,dy) + 0.5) - 1;
+	float ss = sqrtf( ( dx*dx/(float)(nx*nx) + dy*dy/(float)(ny*ny) )/ (para.apix*para.apix) );
 	int l = max(nx,ny);
-
 	float v,signal,Ncurve;
-    //apply weighting function
+    //whiten
 	if( r < l/2 && r >= 0){
 		v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
 		signal=exp(para.bfactor*ss*ss+para.bfactor2*ss+para.bfactor3);
@@ -181,7 +176,7 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 		data[i].x=data[i].x*sqrt((signal*v*v+Ncurve)/signal)/sqrt(ra[r]/rb[r]);
 		if(r>(l*para.apix/6)) data[i].x=data[i].x*exp(-100*ss*ss);
 	}
-	
+
 	// low pass
 	if (r<l*para.apix/para.highres && r >= l*para.apix/para.lowres) {}
 	else if(r>=l*para.apix/para.highres && r<l*para.apix/para.highres+8){
@@ -199,7 +194,6 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 		Ncurve/=signal;
 		data[i].x=data[i].x*sqrt(1/(Ncurve+para.kk*v*v ));
 	}
-
 }
 
 __global__ void normalize_Img(cufftComplex *data,int nx, int ny,float mean)
@@ -281,14 +275,14 @@ __global__ void apply_weighting_function(cufftComplex *data,Parameters para)
 
 __device__ float CTF_AST (int x1, int y1,int nx, int ny, float apix, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode){
 	float v,ss,ag,gamma,df_ast;
-	if(x1 > nx/2) 
-	{
-		x1 = nx-x1;
-		y1 = ny-y1;
-	}
-	ss = ( x1*x1/(float)(nx*nx) + y1*y1/(float)(ny*ny) )/ (apix*apix);
+	y1 = x1>nx/2?ny-y1:y1;
+	x1 = min(x1,nx-x1);
+	float dx = min(x1,nx-x1);
+	float dy = y1-ny/2;
+	ss = ( dx*dx/(float)(nx*nx) + dy*dy/(float)(ny*ny) )/ (apix*apix);
 	//ss = hypotf((float)x1,(float)y1-ny/2)*ds*hypotf((float)x1,(float)y1-ny/2)*ds;
 	ag=atan2(float(y1-ny/2),float(x1));
+
 	df_ast=0.5*(dfu+dfv+2*dfdiff*cosf(2*(dfang*PI/180-ag)));
 	gamma=-2*PI*(cs*2.5e6*lambda*lambda*lambda*ss*ss+df_ast*5000.0*lambda*ss);
 	if (mode==0){
@@ -416,7 +410,7 @@ __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,
 
 	// res <=> data[i+j*nx] after rotation
 	d_rotated_image[id] = res;
-
+	
 }
 
 __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap)
@@ -551,7 +545,6 @@ __global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny)
 	if(i >= nx*ny) return;
 	c[i].x = f[i] ;
 	c[i].y = 0 ;
-
 }
 
 __global__ void do_phase_flip(cufftComplex *filter, Parameters para, int nx, int ny)

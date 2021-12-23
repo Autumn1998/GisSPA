@@ -67,4 +67,18 @@ sudo nvprof ./main --input Data/Data_2/test.lst \
         --padding_size 320 \
         --phase_flip 0\
         --device 0 
+else  ./main --input Data/Data_3/test512_unfiltered_input.lst \
+        --angpix 3.336 \
+        --template Data/Data_3/emd_9976_apix3p336_part1.hdf \
+        --eulerfile Data/Data_3/proj_step3_c2_part1.lst \
+        --phistep 2 \
+        --weight Data/Data_3/snr_ncov.txt \
+        --kk 3 --first 0 --last 1 --energy 300 \
+        --cs 2.7 --Highres 9 --Lowres 100 --diameter 200 \
+        --threshold 7 \
+        --output Output/gpu_test512.1.lst \
+        --padding_size 512 \
+        --phase_flip 1\
+        --device 0 
 fi
+

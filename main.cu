@@ -336,8 +336,16 @@ void cudaAllocImageMem(float **d_image,float **d_rotated_image,cufftComplex **ro
     //Binding stream to plan
     CUFFT_CALL(cufftSetStream(*plan_for_image, *stream));
 
+    int n2[rank] = { nx, ny };//n*m
+    inembed = n2;//输入的数组size
+    istride = 1;//数组内数据连续，为1
+    idist = n2[0] * n2[1];//1个数组的内存大小
+    onembed = n2;//输出是一个数组的size
+    ostride = 1;//每点DFT后数据连续则为1
+    odist = n2[0] * n2[1];//输出第一个数组与第二个数组的距离，即两个数组的首元素的距离
+    batch = 1;//批量处理的批数
     //FFT handler for single whole images
-    CUFFT_CALL(cufftPlan2d(plan_for_whole_IMG,nx,ny,CUFFT_C2C));
+    CUFFT_CALL(cufftPlanMany(plan_for_whole_IMG, rank, n2, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, batch));//针对多信号同时进行FFT
     //Binding stream to plan
     CUFFT_CALL(cufftSetStream(*plan_for_whole_IMG, *stream));
 }  
@@ -385,7 +393,7 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
             infile_mean += h_buf[2*k];
             counts += h_buf[2*k+1];
         }
-        
+
         infile_mean =  sqrtf(infile_mean/(counts*counts));
         
         //Do Normalization 
@@ -395,6 +403,7 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
         //ifft inplace
         CUFFT_CALL(cufftExecC2C(*plan_for_whole_IMG, filter, filter, CUFFT_INVERSE));
         Complex2float<<<block_num,BLOCK_SIZE,0,*stream>>>(d_image,filter,nx,ny);
+
     }
 
 }
