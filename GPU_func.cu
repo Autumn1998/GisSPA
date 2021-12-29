@@ -167,6 +167,7 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 	float ss = sqrtf( ( dx*dx/(float)(nx*nx) + dy*dy/(float)(ny*ny) )/ (para.apix*para.apix) );
 	int l = max(nx,ny);
 	float v,signal,Ncurve;
+
     //whiten
 	if( r < l/2 && r >= 0){
 		v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
@@ -194,20 +195,12 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 		Ncurve/=signal;
 		data[i].x=data[i].x*sqrt(1/(Ncurve+para.kk*v*v ));
 	}
-}
-
-__global__ void normalize_Img(cufftComplex *data,int nx, int ny,float mean)
-{
-    // i <==> global ID
-    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
-	if(i >= nx*ny) return;
-
-	if(mean!=0)	data[i].x=data[i].x/mean;
 
 	//ap2ri
 	float tmp=data[i].x*sinf(data[i].y);
 	data[i].x=data[i].x*cosf(data[i].y);
-	data[i].y=tmp;	
+	data[i].y=tmp;
+
 }
 
 __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,int l)
@@ -298,9 +291,8 @@ __device__ float CTF_AST (int x1, int y1,int nx, int ny, float apix, float dfu, 
 	return v;
 }
 
-//mode = 0 (default)  for template
-//mode = 1 for raw image
-__global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int nx, int ny, int mode)
+
+__global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int nx, int ny)
 {
 	extern __shared__ float sdata[];
     // each thread loads one element from global to shared mem
@@ -313,7 +305,7 @@ __global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int nx, int
 	int r = floor( hypotf(min(y,ny-y) ,min(x,nx-x)) + 0.5) - 1;
 	int l = max(nx,ny);
 
-	if (r < l/2 && r >= 0 && x<=nx/2 && (mode ==0||mode == 1 && i<nx*ny)) {
+	if (r < l/2 && r >= 0 && x<=nx/2 ) {
 		sdata[tid] = data[i].x*data[i].x;
 		sdata[tid+blockDim.x] = 1;
 	}
@@ -360,6 +352,9 @@ __global__ void normalize(cufftComplex *data,int nx, int ny,float *means)
 	data[i].x=data[i].x*cosf(data[i].y);
 	data[i].y=tmp;
 }
+
+
+
 
 __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,int ny)
 {
@@ -537,6 +532,7 @@ __global__ void Complex2float(float *f, cufftComplex *c, int nx, int ny)
 	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
 	if(i >= nx*ny) return;
 	f[i] = c[i].x;
+
 }
 
 __global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny)
@@ -572,4 +568,28 @@ void cudaMemoryTest()
     CUDA_CALL(cudaMemcpy(d_a, h_a, bytes, cudaMemcpyHostToDevice));
     CUDA_CALL(cudaMemcpy(h_a, d_a, bytes, cudaMemcpyDeviceToHost));
     printf("Test finished.\n");
+}
+
+__global__ void ap2ri(cufftComplex *data)
+{
+    // i <==> global ID
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+
+	//ap2ri
+	float tmp=data[i].x*sinf(data[i].y);
+	data[i].x=data[i].x*cosf(data[i].y);
+	data[i].y=tmp;
+}
+
+__global__ void ri2ap(cufftComplex *data)
+{
+    // i <==> global ID
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+
+	// ri2ap
+	float tmp=hypotf(data[i].x, data[i].y);
+	if (data[i].x==0 && data[i].y==0) 
+        data[i].y=0;
+	else data[i].y=atan2(data[i].y,data[i].x);
+	data[i].x=tmp;
 }
