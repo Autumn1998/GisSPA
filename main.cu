@@ -48,7 +48,6 @@ void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t)
     para->dfu=para->defocus+para->dfdiff; //defocus is minus, so abs(dfu) < abs(dfv)
     para->dfv=para->defocus-para->dfdiff;
     para->lambda=12.2639/sqrt(para->energy*1000.0+0.97845*para->energy*para->energy);
-    //para->ds_Img=1/(para->apix * max(i2d_emdata->header.ny,i2d_emdata->header.nx));
     para->ds=1/(para->apix * para->padding_size);
 }
 
@@ -109,7 +108,7 @@ void cudaAllocTemplateMem(int N, Parameters para,float **h_reduction_buf,float *
     CUDA_CALL(  cudaMalloc(rb,N*(RA_SIZE)*sizeof(float))  );
 
     //Buffer for reduction
-    int buf_size = max((long long)RA_SIZE*RA_SIZE/1204, 4*padded_template_size*N/BLOCK_SIZE);
+    int buf_size = max((long long)RA_SIZE*RA_SIZE/BLOCK_SIZE, 4*padded_template_size*N/BLOCK_SIZE);
     *h_reduction_buf = (float *)malloc(buf_size*sizeof(float));
     CUDA_CALL(  cudaMalloc(d_reduction_buf,buf_size*sizeof(float))  );
 
@@ -408,6 +407,7 @@ void handleImage(float *d_image,float *d_rotated_image,cufftComplex *rotated_spl
     CUDA_CHECK();
     split_IMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image,rotated_splitted_image,nx,ny,para.padding_size,para.block_x,para.overlap);	
     CUDA_CHECK();
+
 }
 
 void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,Parameters para, 
@@ -496,31 +496,34 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
             }
 
             //Update global score with local-block score for each template
-            for(int k=0;k<N;k++) 
+            for(int J=0;J<N;J++) 
             {
-                float ra = sums[k]-peaks[k];
-                float rb = sum2s[k]-peaks[k]*peaks[k];
+                float ra = sums[J]-peaks[J];
+                float rb = sum2s[J]-peaks[J]*peaks[J];
                 float rc = padded_template_size - 1;
-                float score = peaks[k]/sqrt(rb/rc - (ra/rc)*(ra/rc));
+                float sd = sqrt(rb/rc - (ra/rc)*(ra/rc));
+                float score;
+                if(sd == 0) score = 0;
+                else score = peaks[J]/sqrt(rb/rc - (ra/rc)*(ra/rc));
                 
-                int cx = i*(l-para.overlap) + (int)pos[k]%l;
-                int cy = j*(l-para.overlap) + (int)pos[k]/l;
+                int cx = i*(l-para.overlap) + (int)pos[J]%l;
+                int cy = j*(l-para.overlap) + (int)pos[J]/l;
 
                 //Rotate (cx,cy) to its soriginal angle
                 float centerx = (cx-nx/2)*cos(euler3*PI/180)+(cy-ny/2)*sin(euler3*PI/180)+nx/2; // centerx
                 float centery = (cy-ny/2)*cos(euler3*PI/180)-(cx-nx/2)*sin(euler3*PI/180)+ny/2; // centery
 
-                if(scores[3*k] < score)
+                if(scores[3*J] < score)
                 {                    
                     //float Ny = para.d_m;
                     //if(cy-Ny/3>=0 && cx-Ny/3>=0 && cy+Ny/3<=ny && cx+Ny/3<=nx)
+                    if(centerx>=0 && centerx<nx &&centery>=0 &&centery<ny)
                     {
-                        scores[3*k] = score;
-                        scores[3*k+1] = centerx;
-                        scores[3*k+2] = centery;
+                        scores[3*J] = score;
+                        scores[3*J+1] = centerx;
+                        scores[3*J+2] = centery;
                         //if(centerx <Ny/3 || centery<Ny/3 || centerx>(ny-Ny/3) || centery>(ny-Ny/3)) scores[3*k]=0;
                     }
-
                 }
 
             }
@@ -535,7 +538,7 @@ void writeScoreToDisk(float *scores,Parameters para,EulerData euler,FILE *fp, in
         float score = scores[3*J];
         float centerx = scores[3*J+1];
         float centery = scores[3*J+2];
-        //if(J == 112 && euler3 == 326.0) printf("%d\t%s\tdefocus=%f\tdfdiff=%f\tdfang=%f\teuler=%f,%f,%f\tcenter=%f,%f\tscore=%f\n",
+        //if(J == 4 && euler3 == 10.0) printf("%d\t%s\tdefocus=%f\tdfdiff=%f\tdfang=%f\teuler=%f,%f,%f\tcenter=%f,%f\tscore=%f\n",
         //            nn,t,(-1)*para.defocus,para.dfdiff,para.dfang,euler.euler1[J],euler.euler2[J],euler3,centerx,centery,score);
         if(score > para.thres)
         {
@@ -649,7 +652,7 @@ int main(int argc, char *argv[])
 
         //Scores : [1-N]->socre  [N+1-2N]->cx+cy*padding_size
         float *scores = new float[euler.length*3];    
-        for(float euler3=0;euler3<360.0;euler3+=para.phi_step)
+        for(float euler3=0.0;euler3<360.0;euler3+=para.phi_step)
         {	 
 #ifdef DEBUG
             printf("Now euler3 => %f / 360.0\n",euler3);

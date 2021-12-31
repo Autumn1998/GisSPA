@@ -263,7 +263,6 @@ __global__ void apply_weighting_function(cufftComplex *data,Parameters para)
 		//euler_w[x]=1.68118*ss;
 		data[i].x=data[i].x*v*sqrt(1/(Ncurve+para.kk*v*v ));
 	}
-	
 }
 
 __device__ float CTF_AST (int x1, int y1,int nx, int ny, float apix, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode){
@@ -405,7 +404,7 @@ __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,
 
 	// res <=> data[i+j*nx] after rotation
 	d_rotated_image[id] = res;
-	
+
 }
 
 __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap)
@@ -426,6 +425,7 @@ __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int 
 
 	if(ori_x>=nx || ori_y>=ny) return;
 	IMG[i].x = Ori[ori_x + ori_y*nx];
+
 }
 
 //Tl = template(template has been predefined by C++)
@@ -460,7 +460,6 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 		CCG[i].y *= -1;
 	}
 
-
 }
 
 //"MAX" reduction for *odata : return max{odata[i]},i
@@ -478,6 +477,7 @@ __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,
 
 	sdata[tid] = odata[i].x;
 	if(x>=x_bound || y>=y_bound ||x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
+	//if(x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
 	sdata[tid+blockDim.x] = local_id;
 	sdata[tid+2*blockDim.x] = odata[i].x;
 	sdata[tid+3*blockDim.x] = odata[i].x*odata[i].x;
