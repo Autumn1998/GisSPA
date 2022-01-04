@@ -55,6 +55,7 @@ __global__ void apply_weighting_function(cufftComplex *data,Parameters para);
 __global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int nx, int ny);
 __global__ void normalize(cufftComplex *d_templates,int nx, int ny,float *means);
 __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,int ny);
+__global__ void rotate_subIMG(cufftComplex *d_image,cufftComplex *d_rotated_image,float e,int l);
 __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap);
 __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftComplex *IMG, int l, int block_id);
 __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,int x_bound, int y_bound);

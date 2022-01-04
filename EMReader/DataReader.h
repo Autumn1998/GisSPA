@@ -58,6 +58,7 @@ struct Parameters
 		printf("--padding_size     %d\n",padding_size);
 		printf("--device_id        %d\n",device_id);
 		printf("--phase_flip       %d\n",phase_flip);
+		printf("--overlap          %d\n",overlap);
 		//printf("--sigma file       %s\n",sigma_path);
 	}
 #endif

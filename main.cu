@@ -298,7 +298,7 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
 
 }
 
-void cudaAllocImageMem(float **d_image,float **d_rotated_image,cufftComplex **rotated_splitted_image,cudaStream_t *stream,
+void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cufftComplex **rotated_splitted_image,cudaStream_t *stream,
     cufftHandle *plan_for_image,cufftHandle *plan_for_whole_IMG,int nx,int ny,Parameters *para)
 {
     int tmp = (para->padding_size - para->overlap);
@@ -314,7 +314,7 @@ void cudaAllocImageMem(float **d_image,float **d_rotated_image,cufftComplex **ro
     para->block_y = block_y;
 
     CUDA_CALL(  cudaMalloc(d_image,nx*ny*sizeof(float))  );
-    CUDA_CALL(  cudaMalloc(d_rotated_image,nx*ny*sizeof(float))  );
+    CUDA_CALL(  cudaMalloc(d_rotated_image,ix*iy*sizeof(cufftComplex))  );
     CUDA_CALL(  cudaMalloc(rotated_splitted_image,ix*iy*sizeof(cufftComplex))  );
 
     /*
@@ -393,19 +393,18 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
 
 }
 
-void handleImage(float *d_image,float *d_rotated_image,cufftComplex *rotated_splitted_image,Parameters para, float e, cudaStream_t *stream, int nx, int ny)
+void handleImage(float *d_image,cufftComplex *d_rotated_image,cufftComplex *rotated_splitted_image,Parameters para, float e, cudaStream_t *stream, int nx, int ny)
 {
-    int block_num = nx*ny/BLOCK_SIZE+1;
-    //Init d_rotated_imge to all {0}
+    // Init d_rotated_imge to all {0}
     int ix = para.block_x;
     int iy = para.block_y;
     int blockIMG_num = ix*iy*para.padding_size*para.padding_size / BLOCK_SIZE;
-    clear_image<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image);
+    clear_image<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image);
     CUDA_CHECK();
-    // 1.rotate Image  2.split Image into blocks with overlap
-    rotate_IMG<<<block_num,BLOCK_SIZE,0,*stream>>>(d_image,d_rotated_image,e,nx,ny);
+    // 1.split Image into blocks with overlap  2.rotate Image
+    split_IMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_image,d_rotated_image,nx,ny,para.padding_size,para.block_x,para.overlap);	
     CUDA_CHECK();
-    split_IMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image,rotated_splitted_image,nx,ny,para.padding_size,para.block_x,para.overlap);	
+    rotate_subIMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image,rotated_splitted_image,e,para.padding_size);
     CUDA_CHECK();
 
 }
@@ -413,8 +412,8 @@ void handleImage(float *d_image,float *d_rotated_image,cufftComplex *rotated_spl
 void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,Parameters para, 
     cufftHandle *template_plan, cufftHandle *image_plan,cudaStream_t *stream,int N,float *h_buf,float *d_buf,float *d_means, float *scores, int nx, int ny, float euler3)
 {           
-    int l = (float)para.padding_size;
-    long long padded_template_size = para.padding_size*para.padding_size;
+    int l = para.padding_size;
+    long long padded_template_size = l*l;
     int blockGPU_num = padded_template_size*N/BLOCK_SIZE;
     int blockIMG_num = padded_template_size*para.block_x*para.block_y/BLOCK_SIZE;
 
@@ -428,7 +427,7 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
     CUFFT_CALL(  cufftExecC2C(*image_plan, rotated_splitted_image, rotated_splitted_image, CUFFT_FORWARD)  );
 
     //Scale IMG to normel size
-    scale<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image,para.padding_size*para.padding_size);
+    scale<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image,padded_template_size);
     CUDA_CHECK();
 
     if(para.phase_flip == 1)
@@ -454,7 +453,7 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
         //Do Normalization with computed infile_mean[]
         CUDA_CALL(  cudaMemcpyAsync(d_means, infile_mean, sizeof(float)*N_IMG, cudaMemcpyHostToDevice, *stream)  );
         //Contain ap2ri
-        normalize<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image,para.padding_size,para.padding_size,d_means);
+        normalize<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image,l,l,d_means);
         CUDA_CHECK();
     }
     
@@ -469,7 +468,7 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
             memset(sums,0,sizeof(float)*N);
             memset(sum2s,0,sizeof(float)*N);
             //compute CCG
-            compute_corner_CCG<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(CCG,d_templates,rotated_splitted_image,para.padding_size,i+j*para.block_x);
+            compute_corner_CCG<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(CCG,d_templates,rotated_splitted_image,l,i+j*para.block_x);
             CUDA_CHECK();
             //Inplace IFT
             CUFFT_CALL(  cufftExecC2C(*template_plan, CCG, CCG, CUFFT_INVERSE)  );
@@ -477,7 +476,7 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
             int x_bound = nx - i*(l-para.overlap);
             int y_bound = ny - j*(l-para.overlap);
             //find peak(position) and get sum of data,data^2
-            get_peak_and_SUM<<<blockGPU_num,BLOCK_SIZE,4*BLOCK_SIZE*sizeof(float),*stream>>>(CCG,d_buf,para.padding_size,para.d_m,x_bound,y_bound);
+            get_peak_and_SUM<<<blockGPU_num,BLOCK_SIZE,4*BLOCK_SIZE*sizeof(float),*stream>>>(CCG,d_buf,l,para.d_m,x_bound,y_bound);
             CUDA_CHECK();
             CUDA_CALL(cudaMemcpyAsync(h_buf, d_buf, 4*sizeof(float)*padded_template_size*N/BLOCK_SIZE, cudaMemcpyDeviceToHost, *stream));
             cudaStreamSynchronize(*stream);
@@ -506,12 +505,13 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
                 if(sd == 0) score = 0;
                 else score = peaks[J]/sqrt(rb/rc - (ra/rc)*(ra/rc));
                 
-                int cx = i*(l-para.overlap) + (int)pos[J]%l;
-                int cy = j*(l-para.overlap) + (int)pos[J]/l;
+                int cx = (int)pos[J]%l;
+                int cy = (int)pos[J]/l;
 
                 //Rotate (cx,cy) to its soriginal angle
-                float centerx = (cx-nx/2)*cos(euler3*PI/180)+(cy-ny/2)*sin(euler3*PI/180)+nx/2; // centerx
-                float centery = (cy-ny/2)*cos(euler3*PI/180)-(cx-nx/2)*sin(euler3*PI/180)+ny/2; // centery
+                float centerx =  i*(l-para.overlap) + (cx-l/2)*cos(euler3*PI/180)+(cy-l/2)*sin(euler3*PI/180)+l/2; // centerx
+                float centery =  j*(l-para.overlap) + (cy-l/2)*cos(euler3*PI/180)-(cx-l/2)*sin(euler3*PI/180)+l/2; // centery
+                //if(J==9) printf("%d %d %f %f %f %d %d\n",i,j,centerx,centery,score,cx,cy);
 
                 if(scores[3*J] < score)
                 {                    
@@ -538,8 +538,7 @@ void writeScoreToDisk(float *scores,Parameters para,EulerData euler,FILE *fp, in
         float score = scores[3*J];
         float centerx = scores[3*J+1];
         float centery = scores[3*J+2];
-        //if(J == 4 && euler3 == 10.0) printf("%d\t%s\tdefocus=%f\tdfdiff=%f\tdfang=%f\teuler=%f,%f,%f\tcenter=%f,%f\tscore=%f\n",
-        //            nn,t,(-1)*para.defocus,para.dfdiff,para.dfang,euler.euler1[J],euler.euler2[J],euler3,centerx,centery,score);
+
         if(score > para.thres)
         {
             fprintf(fp, "%d\t%s\tdefocus=%f\tdfdiff=%f\tdfang=%f\teuler=%f,%f,%f\tcenter=%f,%f\tscore=%f\n",
@@ -633,7 +632,8 @@ int main(int argc, char *argv[])
 // 2. Split
 // 3. doFFT
 //*************************************************   
-        float *d_image,*d_rotated_image;
+        float *d_image;
+        cufftComplex *d_rotated_image;
         cufftComplex *rotated_splitted_image;
         //cufft handler for sub-IMGs and whole-IMG FFT
         cufftHandle plan_for_image,plan_for_whole_IMG;
@@ -652,7 +652,7 @@ int main(int argc, char *argv[])
 
         //Scores : [1-N]->socre  [N+1-2N]->cx+cy*padding_size
         float *scores = new float[euler.length*3];    
-        for(float euler3=0.0;euler3<360.0;euler3+=para.phi_step)
+        for(float euler3=0.0;euler3<36.0;euler3+=para.phi_step)
         {	 
 #ifdef DEBUG
             printf("Now euler3 => %f / 360.0\n",euler3);

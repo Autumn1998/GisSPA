@@ -352,9 +352,6 @@ __global__ void normalize(cufftComplex *data,int nx, int ny,float *means)
 	data[i].y=tmp;
 }
 
-
-
-
 __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,int ny)
 {
 	float cose=cos(e*PI/180);
@@ -404,8 +401,65 @@ __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,
 
 	// res <=> data[i+j*nx] after rotation
 	d_rotated_image[id] = res;
+}
+
+__global__ void rotate_subIMG(cufftComplex *d_image,cufftComplex *d_rotated_image,float e,int l)
+{
+	float cose=cos(e*PI/180);
+	float sine=sin(e*PI/180);
+    long long  id = blockIdx.x*blockDim.x + threadIdx.x;
+	int image_size = l*l;
+    int local_id = id % image_size;
+	long long off = id - local_id;
+    
+	int i = local_id % l;
+    int j = local_id / l;
+	int nx = l, ny = l;
+	float y = j-ny/2, x = i-nx/2;
+	
+	//Res of rotation from (x,y) 
+	float res = 0;
+
+	//(x,y) rotate e with (nx/2,ny/2) (clockwise) 
+	float x2 = (cose*x+sine*y)+nx/2;
+	float y2 = (-sine*x+cose*y)+ny/2;
+
+	//Ouf of boundary after rotation
+	if (x2<0||x2>nx-1.0||y2<0||y2>ny-1.0) res=0;
+	else
+	{
+		int ii,jj;
+		int k0,k1,k2,k3;
+		float t,u,p0,p1,p2,p3;
+		ii=floor(x2);
+		jj=floor(y2);
+		k0=ii+jj*nx;
+		k1=k0+1;
+		k2=k0+nx+1;
+		k3=k0+nx;
+
+		//handle situation when ii,jj are out of boundary
+		if (ii==nx-1) { k1--; k2--; }
+		if (jj==ny-1) { k2-=nx; k3-=nx; }
+		t=(x2-(float)ii);
+		u=(y2-(float)jj);
+		float tt=1.0-t;
+		float uu=1.0-u;
+
+		//bilinear interpolation of raw data (i,j)(i+1,j)(i,j+1)(i+1,j+1)
+		p0=d_image[off+k0].x*tt*uu;
+		p1=d_image[off+k1].x*t*uu;
+		p3=d_image[off+k3].x*tt*u;
+		p2=d_image[off+k2].x*t*u;
+		res=p0+p1+p2+p3;
+
+	}
+
+	// res <=> data[i+j*nx] after rotation
+	d_rotated_image[id].x = res;
 
 }
+
 
 __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap)
 {
