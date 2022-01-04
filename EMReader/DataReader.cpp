@@ -11,13 +11,12 @@ void readParameters(int argc, char *argv[], Parameters *p)
 			strcpy(p->inlst, argv[i]);
 			continue;
 		}
-		option=argv[i];
 		if(option.compare("--output")==0){
 			i++;
 			strcpy(p->outlst, argv[i]);
 			continue;
 		}
-                if(option.compare("--template")==0){
+        if(option.compare("--template")==0){
 			i++;
 			strcpy(p->temp2d, argv[i]);
 			continue;
@@ -109,17 +108,19 @@ void readParameters(int argc, char *argv[], Parameters *p)
 		}
 		printf("Undefined option: %s .Abort.\n",argv[i]);
 	}
-	if(p->padding_size*p->padding_size % 1024 != 0)
+	p->overlap = p->d_m * 1.5;
+	if(p->padding_size*p->padding_size % 1024 != 0 || (p->padding_size <= p->overlap))
 	{
-		printf("Padded IMG size must be N*1024\n");
-		int ori = p->padding_size;
+		printf("Padded IMG size must be N*1024 and larger than overlap{ = 1.5*d_m}\n");
+		int tmp = p->padding_size;
+		int ori = max(p->padding_size,p->overlap);
 		for(int s = 128;s<2048;s+=32)
 			if(s > ori) 
 			{
 				p->padding_size = s;
 				break;
 			}
-		printf("Adjust Padded IMG size from %d to %d\n",ori,p->padding_size);
+		printf("Adjust Padded IMG size from %d to %d\n",tmp,p->padding_size);
 	}
 }
 

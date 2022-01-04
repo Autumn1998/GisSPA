@@ -61,10 +61,10 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
     {
         tp->readImage(para->temp2d,J);
         float *data = tp->getData();
-        if(para->padding_size < tp->header.nx)
+        if(para->padding_size < tp->header.nx || para->padding_size < tp->header.ny)
         {
-            printf("Padded size is smaller than template\n");
-            return ;
+            printf("Padded size is smaller than template.nx /ny\n");
+            exit(-1) ;
         }
         int sx = (para->padding_size - tp->header.nx)/2;
         int sy = (para->padding_size - tp->header.ny)/2;
@@ -78,7 +78,7 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
 	para->template_x = tp->header.nx;
     para->template_y = tp->header.ny;
     para->template_z = tp->header.nz;
-    para->overlap = para->template_x*0.13+1;
+    //para->overlap = para->template_x*0.13+1;
     free(tp);
 }
 
