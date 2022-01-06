@@ -360,7 +360,7 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
     CUDA_CALL(  cudaMemcpyAsync(d_image, image->getData(), sizeof(float)*nx*ny, cudaMemcpyHostToDevice, *stream)  );
     if(para.phase_flip == 1)
     {
-        int block_num = nx*ny/BLOCK_SIZE;
+        int block_num = nx*ny/BLOCK_SIZE+1;
         float2Complex<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,d_image,nx,ny);
         //fft inplace
         CUFFT_CALL(cufftExecC2C(*plan_for_whole_IMG, filter, filter, CUFFT_FORWARD));
