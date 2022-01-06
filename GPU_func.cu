@@ -586,7 +586,6 @@ __global__ void Complex2float(float *f, cufftComplex *c, int nx, int ny)
 	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
 	if(i >= nx*ny) return;
 	f[i] = c[i].x;
-
 }
 
 __global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny)
@@ -646,4 +645,5 @@ __global__ void ri2ap(cufftComplex *data)
         data[i].y=0;
 	else data[i].y=atan2(data[i].y,data[i].x);
 	data[i].x=tmp;
+	
 }

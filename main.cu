@@ -393,24 +393,73 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
 
 }
 
-void handleImage(float *d_image,cufftComplex *d_rotated_image,cufftComplex *rotated_splitted_image,Parameters para, float e, cudaStream_t *stream, int nx, int ny)
+void split_normalize_image(float *d_image,cufftComplex *d_rotated_image,float *h_buf,float *d_buf,float *d_means, Parameters para, cudaStream_t *stream, int nx, int ny, cufftHandle *image_plan)
+{
+    int l = para.padding_size;
+    // Init d_rotated_imge to all {0}
+    int ix = para.block_x;
+    int iy = para.block_y;
+    int blockIMG_num = ix*iy*l*l / BLOCK_SIZE;
+    clear_image<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image);
+    CUDA_CHECK();
+    // split Image into blocks with overlap  
+    split_IMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_image,d_rotated_image,nx,ny,para.padding_size,para.block_x,para.overlap);	
+    CUDA_CHECK();
+
+    // do normalize to all subIMGs
+    if(para.phase_flip == 1)
+    {
+        //Inplace FFT
+        CUFFT_CALL(  cufftExecC2C(*image_plan, d_rotated_image, d_rotated_image, CUFFT_FORWARD)  );
+        //Scale IMG to normel size
+        scale<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image,l*l);
+        CUDA_CHECK();
+
+        ri2ap<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image);
+        compute_area_sum_ofSQR<<<blockIMG_num,BLOCK_SIZE,2*BLOCK_SIZE*sizeof(float),*stream>>>(d_rotated_image,d_buf,nx,ny);
+        CUDA_CHECK();
+        CUDA_CALL(cudaMemcpyAsync(h_buf, d_buf,2*sizeof(float)*blockIMG_num, cudaMemcpyDeviceToHost, *stream));
+        cudaStreamSynchronize(*stream);
+
+        int N_IMG = para.block_x*para.block_y;
+        //After Reduction -> compute mean for each image
+        float infile_mean[N_IMG],counts[N_IMG];
+        memset(infile_mean,0,N_IMG*sizeof(float));
+        memset(counts,0,N_IMG*sizeof(float));
+        for(int k=0;k<blockIMG_num;k++)
+        {
+            int id = k/( (l*l)/BLOCK_SIZE );
+            infile_mean[id] += h_buf[2*k];
+            counts[id] += h_buf[2*k+1];
+        }
+        for(int k=0;k<N_IMG;k++) infile_mean[k] = sqrtf(infile_mean[k]/(counts[k]*counts[k]));
+        
+        //Do Normalization with computed infile_mean[]
+        CUDA_CALL(  cudaMemcpyAsync(d_means, infile_mean, sizeof(float)*N_IMG, cudaMemcpyHostToDevice, *stream)  );
+        //Contain ap2ri
+        normalize<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image,l,l,d_means);
+        CUDA_CHECK();
+
+        //Inplace IFT
+        CUFFT_CALL(  cufftExecC2C(*image_plan, d_rotated_image, d_rotated_image, CUFFT_INVERSE)  );
+    }
+    
+}
+
+void rotateImage(cufftComplex *splitted_image,cufftComplex *rotated_splitted_image,Parameters para, float e, cudaStream_t *stream)
 {
     // Init d_rotated_imge to all {0}
     int ix = para.block_x;
     int iy = para.block_y;
     int blockIMG_num = ix*iy*para.padding_size*para.padding_size / BLOCK_SIZE;
-    clear_image<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image);
-    CUDA_CHECK();
-    // 1.split Image into blocks with overlap  2.rotate Image
-    split_IMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_image,d_rotated_image,nx,ny,para.padding_size,para.block_x,para.overlap);	
-    CUDA_CHECK();
-    rotate_subIMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image,rotated_splitted_image,e,para.padding_size);
+    // rotate subIMG with angle "e"
+    rotate_subIMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(splitted_image,rotated_splitted_image,e,para.padding_size);
     CUDA_CHECK();
 
 }
 
-void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,Parameters para, 
-    cufftHandle *template_plan, cufftHandle *image_plan,cudaStream_t *stream,int N,float *h_buf,float *d_buf,float *d_means, float *scores, int nx, int ny, float euler3)
+void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,float *h_buf,float *d_buf, Parameters para, 
+    cufftHandle *template_plan, cufftHandle *image_plan,cudaStream_t *stream,int N,float *scores, int nx, int ny, float euler3)
 {           
     int l = para.padding_size;
     long long padded_template_size = l*l;
@@ -430,33 +479,6 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
     scale<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image,padded_template_size);
     CUDA_CHECK();
 
-    if(para.phase_flip == 1)
-    {
-        ri2ap<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image);
-        compute_area_sum_ofSQR<<<blockIMG_num,BLOCK_SIZE,2*BLOCK_SIZE*sizeof(float),*stream>>>(rotated_splitted_image,d_buf,nx,ny);
-        CUDA_CHECK();
-        CUDA_CALL(cudaMemcpyAsync(h_buf, d_buf,2*sizeof(float)*blockIMG_num, cudaMemcpyDeviceToHost, *stream));
-        cudaStreamSynchronize(*stream);
-
-        int N_IMG = para.block_x*para.block_y;
-        //After Reduction -> compute mean for each image
-        float infile_mean[N_IMG],counts[N_IMG];
-        memset(infile_mean,0,N_IMG*sizeof(float));
-        memset(counts,0,N_IMG*sizeof(float));
-        for(int k=0;k<blockIMG_num;k++)
-        {
-            int id = k/(padded_template_size/BLOCK_SIZE);
-            infile_mean[id] += h_buf[2*k];
-            counts[id] += h_buf[2*k+1];
-        }
-        for(int k=0;k<N_IMG;k++) infile_mean[k] = sqrtf(infile_mean[k]/(counts[k]*counts[k]));
-        //Do Normalization with computed infile_mean[]
-        CUDA_CALL(  cudaMemcpyAsync(d_means, infile_mean, sizeof(float)*N_IMG, cudaMemcpyHostToDevice, *stream)  );
-        //Contain ap2ri
-        normalize<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(rotated_splitted_image,l,l,d_means);
-        CUDA_CHECK();
-    }
-    
     //compute score for each block
     for(int j=0;j<para.block_y;j++)
     {
@@ -647,18 +669,21 @@ int main(int argc, char *argv[])
 #endif
         
         cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,&para);
-        //1.Put Image on GPU 2.phaseflip
+        // 1.Put Image on GPU 2.phaseflip
         init_d_image(para,rotated_splitted_image,d_image,ra,rb,image,nx,ny,&stream,&plan_for_whole_IMG);
+        // split Image into blocks with overlap
+        split_normalize_image(d_image,d_rotated_image,h_reduction_buf,d_reduction_buf,d_means,para,&stream,nx,ny,&plan_for_image);
 
         //Scores : [1-N]->socre  [N+1-2N]->cx+cy*padding_size
         float *scores = new float[euler.length*3];    
-        for(float euler3=0.0;euler3<36.0;euler3+=para.phi_step)
+        for(float euler3=0.0;euler3<360.0;euler3+=para.phi_step)
         {	 
 #ifdef DEBUG
             printf("Now euler3 => %f / 360.0\n",euler3);
 #endif 
-            // 1.rotate Image  2.split Image into blocks with overlap
-            handleImage(d_image,d_rotated_image,rotated_splitted_image,para,euler3,&stream,nx,ny);
+            // rotate Image  
+            rotateImage(d_rotated_image,rotated_splitted_image,para,euler3,&stream);
+
             //***************************************************
             //Pick particles from IMG with template
             //1. Calculate ccg
@@ -667,7 +692,7 @@ int main(int argc, char *argv[])
             //4. Output score
             //***************************************************
 
-            pickPartcles(CCG,d_templates,rotated_splitted_image,para,&plan_for_temp,&plan_for_image,&stream,euler.length,h_reduction_buf,d_reduction_buf,d_means,scores,nx,ny,euler3);
+            pickPartcles(CCG,d_templates,rotated_splitted_image,h_reduction_buf,d_reduction_buf,para,&plan_for_temp,&plan_for_image,&stream,euler.length,scores,nx,ny,euler3);
             cudaStreamSynchronize(stream);
             writeScoreToDisk(scores,para,euler,fp,nn,t,nx,ny,euler3);
         }
