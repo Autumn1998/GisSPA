@@ -407,7 +407,7 @@ void split_normalize_image(float *d_image,cufftComplex *d_rotated_image,float *h
     CUDA_CHECK();
 
     // do normalize to all subIMGs
-    if(para.phase_flip == 2)
+    if(para.phase_flip == 1)
     {
         //Inplace FFT
         CUFFT_CALL(  cufftExecC2C(*image_plan, d_rotated_image, d_rotated_image, CUFFT_FORWARD)  );
