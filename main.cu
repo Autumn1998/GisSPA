@@ -407,7 +407,7 @@ void split_normalize_image(float *d_image,cufftComplex *d_rotated_image,float *h
     CUDA_CHECK();
 
     // do normalize to all subIMGs
-    if(para.phase_flip == 1)
+    if(para.phase_flip == 2)
     {
         //Inplace FFT
         CUFFT_CALL(  cufftExecC2C(*image_plan, d_rotated_image, d_rotated_image, CUFFT_FORWARD)  );
@@ -416,7 +416,7 @@ void split_normalize_image(float *d_image,cufftComplex *d_rotated_image,float *h
         CUDA_CHECK();
 
         ri2ap<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image);
-        compute_area_sum_ofSQR<<<blockIMG_num,BLOCK_SIZE,2*BLOCK_SIZE*sizeof(float),*stream>>>(d_rotated_image,d_buf,nx,ny);
+        compute_area_sum_ofSQR<<<blockIMG_num,BLOCK_SIZE,2*BLOCK_SIZE*sizeof(float),*stream>>>(d_rotated_image,d_buf,l,l);
         CUDA_CHECK();
         CUDA_CALL(cudaMemcpyAsync(h_buf, d_buf,2*sizeof(float)*blockIMG_num, cudaMemcpyDeviceToHost, *stream));
         cudaStreamSynchronize(*stream);
@@ -533,7 +533,7 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
                 //Rotate (cx,cy) to its soriginal angle
                 float centerx =  i*(l-para.overlap) + (cx-l/2)*cos(euler3*PI/180)+(cy-l/2)*sin(euler3*PI/180)+l/2; // centerx
                 float centery =  j*(l-para.overlap) + (cy-l/2)*cos(euler3*PI/180)-(cx-l/2)*sin(euler3*PI/180)+l/2; // centery
-                //if(J==9) printf("%d %d %f %f %f %d %d\n",i,j,centerx,centery,score,cx,cy);
+                //if(J==0) printf("%d %d %f %f %f %d %d =>(%d %d)\n",i,j,centerx,centery,score,cx,cy,i*(l-para.overlap),j*(l-para.overlap));
 
                 if(scores[3*J] < score)
                 {                    
@@ -553,9 +553,9 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
     }
 }
 
-void writeScoreToDisk(float *scores,Parameters para,EulerData euler,FILE *fp, int nn, char *t, int nx, int ny, float euler3)
+void writeScoreToDisk(int N_tmp,float *scores,Parameters para,EulerData euler,FILE *fp, int nn, char *t, int nx, int ny, float euler3)
 {
-    for(int J=0;J<euler.length;J++)
+    for(int J=0;J<N_tmp;J++)
     {
         float score = scores[3*J];
         float centerx = scores[3*J+1];
@@ -576,6 +576,9 @@ int main(int argc, char *argv[])
     time_t first, second;  
     first=time(NULL);
 
+    //euler.length, number of template
+    int N_tmp;
+
     //Print Help Message if no para input
     if(argc==1){
 		printHelpMsg(); 
@@ -592,6 +595,7 @@ int main(int argc, char *argv[])
     para.printAllPara();
 #endif
     readEMData(&para,&euler);
+    N_tmp = euler.length; 
 
     //IMG id
     int nn=0;
@@ -625,7 +629,7 @@ int main(int argc, char *argv[])
     //Store sigma value for all templates
     double *sigmas;
     double *d_sigmas;
-    cudaAllocTemplateMem(euler.length,para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
+    cudaAllocTemplateMem(N_tmp,para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
         &h_templates,&d_templates,&CCG,&stream,&ra,&rb,&plan_for_temp);
     
 
@@ -637,14 +641,14 @@ int main(int argc, char *argv[])
         //Read Image
         readRawImage(image,&para,n,&nn,t);
         //Reading Template
-        readAndPaddingTemplate(&para,h_templates,euler.length,sigmas);
+        readAndPaddingTemplate(&para,h_templates,N_tmp,sigmas);
 
         //Process edge normlization
         //To avoid alloc memory,use CCG as tempary buf
-        edgeNormalize(euler.length,sigmas,d_sigmas,CCG,h_templates,d_templates,h_reduction_buf,d_reduction_buf,d_means,para,&stream);
+        edgeNormalize(N_tmp,sigmas,d_sigmas,CCG,h_templates,d_templates,h_reduction_buf,d_reduction_buf,d_means,para,&stream);
 
         //whiten, apply mask, appy weighting ..
-        handleTemplate(euler.length,ra,rb,h_reduction_buf,d_reduction_buf,d_means,
+        handleTemplate(N_tmp,ra,rb,h_reduction_buf,d_reduction_buf,d_means,
             h_templates,d_templates,&para,&stream,&plan_for_temp);
 
 //*************************************************
@@ -665,7 +669,7 @@ int main(int argc, char *argv[])
 
 #ifdef DEBUG
         printf("IMG size:           %d %d\n",nx,ny);
-        printf("Number of template: %d\n",euler.length);
+        printf("Number of template: %d\n",N_tmp);
 #endif
         
         cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,&para);
@@ -675,7 +679,7 @@ int main(int argc, char *argv[])
         split_normalize_image(d_image,d_rotated_image,h_reduction_buf,d_reduction_buf,d_means,para,&stream,nx,ny,&plan_for_image);
 
         //Scores : [1-N]->socre  [N+1-2N]->cx+cy*padding_size
-        float *scores = new float[euler.length*3];    
+        float *scores = new float[N_tmp*3];    
         for(float euler3=0.0;euler3<360.0;euler3+=para.phi_step)
         {	 
 #ifdef DEBUG
@@ -692,9 +696,9 @@ int main(int argc, char *argv[])
             //4. Output score
             //***************************************************
 
-            pickPartcles(CCG,d_templates,rotated_splitted_image,h_reduction_buf,d_reduction_buf,para,&plan_for_temp,&plan_for_image,&stream,euler.length,scores,nx,ny,euler3);
+            pickPartcles(CCG,d_templates,rotated_splitted_image,h_reduction_buf,d_reduction_buf,para,&plan_for_temp,&plan_for_image,&stream,N_tmp,scores,nx,ny,euler3);
             cudaStreamSynchronize(stream);
-            writeScoreToDisk(scores,para,euler,fp,nn,t,nx,ny,euler3);
+            writeScoreToDisk(N_tmp,scores,para,euler,fp,nn,t,nx,ny,euler3);
         }
         cufftDestroy(plan_for_whole_IMG);
         cufftDestroy(plan_for_image);

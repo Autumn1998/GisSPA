@@ -114,7 +114,7 @@ void readParameters(int argc, char *argv[], Parameters *p)
 		printf("Padded IMG size must be N*1024 and larger than overlap{ = 1.5*d_m}\n");
 		int tmp = p->padding_size;
 		int ori = max(p->padding_size,p->overlap);
-		for(int s = 128;s<2048;s+=32)
+		for(int s = 128;s<2048*4;s+=32)
 			if(s > ori) 
 			{
 				p->padding_size = s;

@@ -90,6 +90,7 @@ __global__  void  scale_each(int l,cufftComplex *d_templates,float *ems,double *
 
 	if(d_sigmas[image_id]-0 < EPS && d_sigmas[image_id]-0 >-EPS ) return;
 	d_templates[i].x = (d_templates[i].x - ems[image_id])/d_sigmas[image_id];
+
 }
 
 //mode = 0 (default)  for template
@@ -513,7 +514,6 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 		CCG[i].x *= -1;
 		CCG[i].y *= -1;
 	}
-
 }
 
 //"MAX" reduction for *odata : return max{odata[i]},i
@@ -594,6 +594,7 @@ __global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny)
 	if(i >= nx*ny) return;
 	c[i].x = f[i] ;
 	c[i].y = 0 ;
+
 }
 
 __global__ void do_phase_flip(cufftComplex *filter, Parameters para, int nx, int ny)
