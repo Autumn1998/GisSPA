@@ -51,6 +51,7 @@ void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t)
     para->ds=1/(para->apix * para->padding_size);
 }
 
+
 //read template(float *)
 //covert template from float* to cufftcomplex *
 void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, double *sigmas)
@@ -82,11 +83,23 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
     free(tp);
 }
 
-void cudaAllocTemplateMem(int N, Parameters para,float **h_reduction_buf,float **d_reduction_buf,float **d_means,double **sigmas,double **d_sigmas,cufftComplex **h_templates,
+void cudaAllocTemplateMem(int N, int nx, int ny, Parameters *para,float **h_reduction_buf,float **d_reduction_buf,float **d_means,double **sigmas,double **d_sigmas,cufftComplex **h_templates,
     cufftComplex **d_templates,cufftComplex **CCG,cudaStream_t *stream,float **ra, float **rb, cufftHandle *plan_for_temp)
 {
+    int tmp = (para->padding_size - para->overlap);
+    //num of blocks in x,y axis
+    int block_x = (nx-para->overlap) / tmp;
+    if((nx-para->overlap) % tmp > 0 ) block_x ++; 
+    int block_y = (ny-para->overlap) / tmp;
+    if((nx-para->overlap) % tmp > 0 ) block_y ++; 
+    para->block_x = block_x;
+    para->block_y = block_y;
+    
+    //N = max{num of tmplates ,  num of subimgs }
+    N = max(N,block_x*block_y);
+
     //Number of Pixels for each padded template
-    long long padded_template_size = para.padding_size*para.padding_size;
+    long long padded_template_size = para->padding_size*para->padding_size;
 
     //All padded templates (complex) At CPU,GPU
     *h_templates = (cufftComplex *)malloc(sizeof(cufftComplex)*padded_template_size*N);
@@ -108,7 +121,7 @@ void cudaAllocTemplateMem(int N, Parameters para,float **h_reduction_buf,float *
     CUDA_CALL(  cudaMalloc(rb,N*(RA_SIZE)*sizeof(float))  );
 
     //Buffer for reduction
-    int buf_size = max((long long)RA_SIZE*RA_SIZE/BLOCK_SIZE, 4*padded_template_size*N/BLOCK_SIZE);
+    long long buf_size = max((long long)RA_SIZE*RA_SIZE/BLOCK_SIZE, 4*padded_template_size*N/BLOCK_SIZE);
     *h_reduction_buf = (float *)malloc(buf_size*sizeof(float));
     CUDA_CALL(  cudaMalloc(d_reduction_buf,buf_size*sizeof(float))  );
 
@@ -121,7 +134,7 @@ void cudaAllocTemplateMem(int N, Parameters para,float **h_reduction_buf,float *
 	int odist, cufftType type, int batch, size_t *workSize);
 	 */
 	const int rank = 2;//维数
-    int n[rank] = { para.padding_size, para.padding_size };//n*m
+    int n[rank] = { para->padding_size, para->padding_size };//n*m
     int *inembed = n;//输入的数组size
     int istride = 1;//数组内数据连续，为1
     int idist = n[0] * n[1];//1个数组的内存大小
@@ -299,19 +312,11 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
 }
 
 void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cufftComplex **rotated_splitted_image,cudaStream_t *stream,
-    cufftHandle *plan_for_image,cufftHandle *plan_for_whole_IMG,int nx,int ny,Parameters *para)
+    cufftHandle *plan_for_image,cufftHandle *plan_for_whole_IMG,int nx,int ny,int N,Parameters *para)
 {
-    int tmp = (para->padding_size - para->overlap);
-    //num of blocks in x,y axis
-    int block_x = (nx-para->overlap) / tmp;
-    if((nx-para->overlap) % tmp > 0 ) block_x ++; 
-    int block_y = (ny-para->overlap) / tmp;
-    if((nx-para->overlap) % tmp > 0 ) block_y ++; 
     //X Y Size for padded IMG
-    int ix = block_x*para->padding_size;
-    int iy = block_y*para->padding_size;
-    para->block_x = block_x;
-    para->block_y = block_y;
+    int ix = para->block_x*para->padding_size;
+    int iy = para->block_y*para->padding_size;
 
     CUDA_CALL(  cudaMalloc(d_image,nx*ny*sizeof(float))  );
     CUDA_CALL(  cudaMalloc(d_rotated_image,ix*iy*sizeof(cufftComplex))  );
@@ -330,7 +335,7 @@ void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cufftCompl
     int *onembed = n;//输出是一个数组的size
     int ostride = 1;//每点DFT后数据连续则为1
     int odist = n[0] * n[1];//输出第一个数组与第二个数组的距离，即两个数组的首元素的距离
-    int batch = block_x*block_y;//批量处理的批数
+    int batch = para->block_x*para->block_y;//批量处理的批数
     //采用cufftPlanMany方法
     
     //FFT handler for all sub images
@@ -416,6 +421,7 @@ void split_normalize_image(float *d_image,cufftComplex *d_rotated_image,float *h
         CUDA_CHECK();
 
         ri2ap<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image);
+
         compute_area_sum_ofSQR<<<blockIMG_num,BLOCK_SIZE,2*BLOCK_SIZE*sizeof(float),*stream>>>(d_rotated_image,d_buf,l,l);
         CUDA_CHECK();
         CUDA_CALL(cudaMemcpyAsync(h_buf, d_buf,2*sizeof(float)*blockIMG_num, cudaMemcpyDeviceToHost, *stream));
@@ -629,17 +635,33 @@ int main(int argc, char *argv[])
     //Store sigma value for all templates
     double *sigmas;
     double *d_sigmas;
-    cudaAllocTemplateMem(N_tmp,para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
+
+    // READ FIRST IMG TO GET nx & ny
+    //Image to be searched 
+    emdata *image = new emdata();
+    //Read Image
+    readRawImage(image,&para,para.first,&nn,t);
+    //size of first IMG
+    int nx = image->header.nx;
+    int ny = image->header.ny;
+#ifdef DEBUG
+        printf("IMG size:           %d %d\n",nx,ny);
+        printf("Number of template: %d\n",N_tmp);
+#endif
+    cudaAllocTemplateMem(N_tmp,nx,ny,&para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
         &h_templates,&d_templates,&CCG,&stream,&ra,&rb,&plan_for_temp);
     
 
     //Loop for all Images. (Last - First) normally is 1;
     for(int n=para.first;n<para.last;n++)
 	{
-        //Image to be searched 
-        emdata *image = new emdata();
-        //Read Image
-        readRawImage(image,&para,n,&nn,t);
+        if(n != para.first)
+        {
+            //Image to be searched 
+            image = new emdata();
+            //Read Image
+            readRawImage(image,&para,n,&nn,t);
+        }
         //Reading Template
         readAndPaddingTemplate(&para,h_templates,N_tmp,sigmas);
 
@@ -663,16 +685,8 @@ int main(int argc, char *argv[])
         cufftComplex *rotated_splitted_image;
         //cufft handler for sub-IMGs and whole-IMG FFT
         cufftHandle plan_for_image,plan_for_whole_IMG;
-        //size of IMG
-        int nx = image->header.nx;
-        int ny = image->header.ny;
-
-#ifdef DEBUG
-        printf("IMG size:           %d %d\n",nx,ny);
-        printf("Number of template: %d\n",N_tmp);
-#endif
         
-        cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,&para);
+        cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,N_tmp,&para);
         // 1.Put Image on GPU 2.phaseflip
         init_d_image(para,rotated_splitted_image,d_image,ra,rb,image,nx,ny,&stream,&plan_for_whole_IMG);
         // split Image into blocks with overlap

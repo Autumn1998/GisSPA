@@ -514,6 +514,7 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 		CCG[i].x *= -1;
 		CCG[i].y *= -1;
 	}
+
 }
 
 //"MAX" reduction for *odata : return max{odata[i]},i
@@ -530,8 +531,8 @@ __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,
     int y = local_id / l;
 
 	sdata[tid] = odata[i].x;
-	if(x>=x_bound || y>=y_bound ||x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
-	//if(x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
+	//if(x>=x_bound || y>=y_bound ||x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
+	if(x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
 	sdata[tid+blockDim.x] = local_id;
 	sdata[tid+2*blockDim.x] = odata[i].x;
 	sdata[tid+3*blockDim.x] = odata[i].x*odata[i].x;
@@ -586,6 +587,7 @@ __global__ void Complex2float(float *f, cufftComplex *c, int nx, int ny)
 	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
 	if(i >= nx*ny) return;
 	f[i] = c[i].x;
+	
 }
 
 __global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny)
@@ -646,5 +648,5 @@ __global__ void ri2ap(cufftComplex *data)
         data[i].y=0;
 	else data[i].y=atan2(data[i].y,data[i].x);
 	data[i].x=tmp;
-	
+
 }
