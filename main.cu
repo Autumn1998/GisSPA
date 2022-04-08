@@ -717,6 +717,7 @@ int main(int argc, char *argv[])
         cufftDestroy(plan_for_whole_IMG);
         cufftDestroy(plan_for_image);
         cudaFree(rotated_splitted_image);
+        cudaFree(d_rotated_image);
         cudaFree(d_image);
         delete scores;
         
