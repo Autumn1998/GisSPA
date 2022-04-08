@@ -80,6 +80,8 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
     para->template_y = tp->header.ny;
     para->template_z = tp->header.nz;
     //para->overlap = para->template_x*0.13+1;
+    //free heap memory
+    if(tp!=NULL) delete tp;
     free(tp);
 }
 
@@ -650,7 +652,8 @@ int main(int argc, char *argv[])
 #endif
     cudaAllocTemplateMem(N_tmp,nx,ny,&para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
         &h_templates,&d_templates,&CCG,&stream,&ra,&rb,&plan_for_temp);
-    
+    //free heap memory
+    if(image!=NULL) delete image;
 
     //Loop for all Images. (Last - First) normally is 1;
     for(int n=para.first;n<para.last;n++)
@@ -721,6 +724,8 @@ int main(int argc, char *argv[])
         cudaFree(d_image);
         delete []scores;
         
+        //free heap memory
+        if(image!=NULL) delete image;
     }
 
     cufftDestroy(plan_for_temp);
