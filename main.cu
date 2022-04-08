@@ -727,12 +727,14 @@ int main(int argc, char *argv[])
     cudaStreamDestroy(stream);
     cudaFree(d_reduction_buf);
     cudaFree(d_templates);
+    cudaFree(d_sigmas);
     cudaFree(d_means);
     cudaFree(CCG);
     cudaFree(ra);
     cudaFree(rb);
     free(h_reduction_buf);
     free(h_templates);
+    free(sigmas);
     fclose(fp);
 
     //Timer
