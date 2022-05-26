@@ -21,7 +21,7 @@ if [ $1 == '0' ]; then
         --output Output/test_out.lst \
         --padding_size 256 \
         --phase_flip 0\
-        --device 0 
+        --device 8 
 
 # Test Data 2
 # Template:182*182*2295    Raw Image:5760*4092

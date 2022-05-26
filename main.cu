@@ -10,6 +10,16 @@
 
 using namespace std;
 
+//for debug
+//check GPU mem leaking
+void checkGPUMem()
+{
+    size_t avail(0);
+    size_t total(0);
+    cudaMemGetInfo(&avail,&total);
+    printf("Avail:%zu / Total:%zu \n",avail,total);    
+}
+
 void readEMData(Parameters *para, EulerData *euler)
 {
     readEulerData(para->eulerf,euler);
@@ -82,7 +92,6 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
     //para->overlap = para->template_x*0.13+1;
     //free heap memory
     if(tp!=NULL) delete tp;
-    free(tp);
 }
 
 void cudaAllocTemplateMem(int N, int nx, int ny, Parameters *para,float **h_reduction_buf,float **d_reduction_buf,float **d_means,double **sigmas,double **d_sigmas,cufftComplex **h_templates,
@@ -116,7 +125,7 @@ void cudaAllocTemplateMem(int N, int nx, int ny, Parameters *para,float **h_redu
     CUDA_CALL(  cudaMalloc(d_sigmas,sizeof(double)*N)  );
     
     //Cuda Stream
-	cudaStreamCreate(stream);
+    cudaStreamCreate(stream);
 
     //Temp buffer for whiten
     CUDA_CALL(  cudaMalloc(ra,N*(RA_SIZE)*sizeof(float))  );
@@ -135,7 +144,7 @@ void cudaAllocTemplateMem(int N, int nx, int ny, Parameters *para,float **h_redu
 	int istride, int idist, int *onembed, int ostride,
 	int odist, cufftType type, int batch, size_t *workSize);
 	 */
-	const int rank = 2;//维数
+    const int rank = 2;//维数
     int n[rank] = { para->padding_size, para->padding_size };//n*m
     int *inembed = n;//输入的数组size
     int istride = 1;//数组内数据连续，为1
@@ -329,7 +338,7 @@ void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cufftCompl
 	int istride, int idist, int *onembed, int ostride,
 	int odist, cufftType type, int batch, size_t *workSize);
 	 */
-	const int rank = 2;//维数
+    const int rank = 2;//维数
     int n[rank] = { para->padding_size, para->padding_size };//n*m
     int *inembed = n;//输入的数组size
     int istride = 1;//数组内数据连续，为1
@@ -591,7 +600,7 @@ int main(int argc, char *argv[])
     if(argc==1){
 		printHelpMsg(); 
 		return 0;
-	}
+    }
 
     //Store all parameters(some from input, some from computation)
     Parameters para;
@@ -640,31 +649,29 @@ int main(int argc, char *argv[])
 
     // READ FIRST IMG TO GET nx & ny
     //Image to be searched 
-    emdata *image = new emdata();
-    //Read Image
-    readRawImage(image,&para,para.first,&nn,t);
+    emdata *first_image = new emdata();
+    //Read first Image
+    readRawImage(first_image,&para,para.first,&nn,t);
     //size of first IMG
-    int nx = image->header.nx;
-    int ny = image->header.ny;
+    int nx = first_image->header.nx;
+    int ny = first_image->header.ny;
 #ifdef DEBUG
         printf("IMG size:           %d %d\n",nx,ny);
         printf("Number of template: %d\n",N_tmp);
 #endif
     cudaAllocTemplateMem(N_tmp,nx,ny,&para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
         &h_templates,&d_templates,&CCG,&stream,&ra,&rb,&plan_for_temp);
-    //free heap memory
-    if(image!=NULL) delete image;
+    
+        //free heap memory
+    if(first_image!=NULL) delete first_image;
 
     //Loop for all Images. (Last - First) normally is 1;
     for(int n=para.first;n<para.last;n++)
-	{
-        if(n != para.first)
-        {
-            //Image to be searched 
-            image = new emdata();
-            //Read Image
-            readRawImage(image,&para,n,&nn,t);
-        }
+    {
+        //Image to be searched 
+        emdata *image = new emdata();
+        //Read Image
+        readRawImage(image,&para,n,&nn,t);
         //Reading Template
         readAndPaddingTemplate(&para,h_templates,N_tmp,sigmas);
 
@@ -688,7 +695,6 @@ int main(int argc, char *argv[])
         cufftComplex *rotated_splitted_image;
         //cufft handler for sub-IMGs and whole-IMG FFT
         cufftHandle plan_for_image,plan_for_whole_IMG;
-        
         cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,N_tmp,&para);
         // 1.Put Image on GPU 2.phaseflip
         init_d_image(para,rotated_splitted_image,d_image,ra,rb,image,nx,ny,&stream,&plan_for_whole_IMG);
@@ -719,13 +725,16 @@ int main(int argc, char *argv[])
         }
         cufftDestroy(plan_for_whole_IMG);
         cufftDestroy(plan_for_image);
-        cudaFree(rotated_splitted_image);
+	    cudaFree(rotated_splitted_image);
         cudaFree(d_rotated_image);
         cudaFree(d_image);
         delete []scores;
-        
+
         //free heap memory
         if(image!=NULL) delete image;
+        
+        //check avail mem, for debugging
+        //checkGPUMem();
     }
 
     cufftDestroy(plan_for_temp);
