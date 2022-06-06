@@ -42,6 +42,7 @@ cufftResult_t :
 #else
 #define CUDA_CALL(F) (F)
 #define CUDA_CHECK()
+#define CUFFT_CALL(F) (F)
 #endif
 __global__ void UpdateSigma(cufftComplex *d_templates,float *d_buf);
 __global__ void generate_mask(int l,cufftComplex *mask,float r,float *d_buf,float up,float low);

@@ -89,7 +89,6 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
 	para->template_x = tp->header.nx;
     para->template_y = tp->header.ny;
     para->template_z = tp->header.nz;
-    //para->overlap = para->template_x*0.13+1;
     //free heap memory
     if(tp!=NULL) delete tp;
 }
@@ -591,7 +590,6 @@ int main(int argc, char *argv[])
 {
     //Timer
     time_t first, second;  
-    first=time(NULL);
 
     //euler.length, number of template
     int N_tmp;
@@ -662,14 +660,25 @@ int main(int argc, char *argv[])
     cudaAllocTemplateMem(N_tmp,nx,ny,&para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
         &h_templates,&d_templates,&CCG,&stream,&ra,&rb,&plan_for_temp);
     
-        //free heap memory
+    //free heap memory
     if(first_image!=NULL) delete first_image;
-
+    
+    //pointer to store image data
+    float *d_image;
+    cufftComplex *d_rotated_image;
+    cufftComplex *rotated_splitted_image;
+    //cufft handler for sub-IMGs and whole-IMG FFT
+    cufftHandle plan_for_image,plan_for_whole_IMG;
+    //pointer of image to be searched 
+    emdata *image = new emdata();;
+    
+    //timer
+    first=time(NULL);
+    //flag for the first loop
+    bool firstOrNot = true;
     //Loop for all Images. (Last - First) normally is 1;
     for(int n=para.first;n<para.last;n++)
     {
-        //Image to be searched 
-        emdata *image = new emdata();
         //Read Image
         readRawImage(image,&para,n,&nn,t);
         //Reading Template
@@ -690,12 +699,8 @@ int main(int argc, char *argv[])
 // 2. Split
 // 3. doFFT
 //*************************************************   
-        float *d_image;
-        cufftComplex *d_rotated_image;
-        cufftComplex *rotated_splitted_image;
-        //cufft handler for sub-IMGs and whole-IMG FFT
-        cufftHandle plan_for_image,plan_for_whole_IMG;
-        cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,N_tmp,&para);
+        if(firstOrNot) cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,N_tmp,&para);
+        firstOrNot = false;
         // 1.Put Image on GPU 2.phaseflip
         init_d_image(para,rotated_splitted_image,d_image,ra,rb,image,nx,ny,&stream,&plan_for_whole_IMG);
         // split Image into blocks with overlap
@@ -723,19 +728,21 @@ int main(int argc, char *argv[])
             cudaStreamSynchronize(stream);
             writeScoreToDisk(N_tmp,scores,para,euler,fp,nn,t,nx,ny,euler3);
         }
-        cufftDestroy(plan_for_whole_IMG);
-        cufftDestroy(plan_for_image);
-	    cudaFree(rotated_splitted_image);
-        cudaFree(d_rotated_image);
-        cudaFree(d_image);
-        delete []scores;
-
-        //free heap memory
-        if(image!=NULL) delete image;
-        
+        delete []scores;       
         //check avail mem, for debugging
         //checkGPUMem();
     }
+    //Timer
+    second=time(NULL);  
+    printf("Total consumed time is: %f seconds\n",difftime(second,first)); 
+    
+    cufftDestroy(plan_for_whole_IMG);
+    cufftDestroy(plan_for_image);
+    cudaFree(rotated_splitted_image);
+    cudaFree(d_rotated_image);
+    cudaFree(d_image);
+    //free heap memory
+    if(image!=NULL) delete image;
 
     cufftDestroy(plan_for_temp);
     cudaStreamDestroy(stream);
@@ -751,9 +758,6 @@ int main(int argc, char *argv[])
     free(sigmas);
     fclose(fp);
 
-    //Timer
-    second=time(NULL);  
-    printf("Total consumed time is: %f seconds\n",difftime(second,first)); 
 
     return 0;
 }

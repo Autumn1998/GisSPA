@@ -109,6 +109,7 @@ void readParameters(int argc, char *argv[], Parameters *p)
 		printf("Undefined option: %s .Abort.\n",argv[i]);
 	}
 	p->overlap = p->d_m * 1.5;
+	p->overlap = p->padding_size*0.13+1;
 	if(p->padding_size*p->padding_size % 1024 != 0 || (p->padding_size <= p->overlap))
 	{
 		printf("Padded IMG size must be N*1024 and larger than overlap{ = 1.5*d_m}\n");
