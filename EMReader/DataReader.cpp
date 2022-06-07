@@ -121,7 +121,7 @@ void parse(string line, Parameters *p)
 	char value[200];
 	int i;
 	// get the type of line
-	for(i=0;i<line.size();i++) if(line[i] == ' ') break;
+	for(i=0;i<line.size();i++) if(line[i] == ' ' || line[i] == '=') break;
 	option = line.substr(0,i);
 	for(;i<line.size();i++) if(line[i]!=' ' && line[i]!='=') break;
 	strcpy(value, line.substr(i,line.size()-i).c_str());

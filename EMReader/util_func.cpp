@@ -78,22 +78,33 @@ int Split(const char* str, vector<string>& results, const char* delim, bool empt
 void printHelpMsg()
 {
 	printf("This program detect targets with orientations and tanslations.\n");
-	printf("--input            input filtered images lstfile with ctf information\n");
-	printf("--angpix           input pixel size in angstroms\n");
-	printf("--template         input 2D projections templates in .hdf format\n");
-	printf("--eulerfile        euler file with euler values\n");
-	printf("--phistep          inplane rotation sampling\n");
-	printf("--weight           optimized weight with SSNR parmeters.\n");
-	printf("--kk               overlapping density parameter, default is 3.\n");
-	printf("--first            the first image to process.\n");
-	printf("--last             the last image to process.\n");
-	printf("--energy           accerlerating voltage in kV.\n");
-	printf("--cs               spherical aberration in um.\n");
-	printf("--Highres          high resolution cut \n");
-	printf("--Lowres           low resolution cut\n");
-	printf("--diameter         target diameter in pixel\n");
-	printf("--threshold        cc threshold value, only output LOCs beyond this value\n");
-	printf("--output           output lstfile filaname\n");
+	printf("How to use this problem:  \"./main config_file\"  \n");
+	printf("HDF5 and CUDA lib are needed to run\n");
+	printf("All parameters should be set on the config file.\n");
+	printf("All parameters are listed as below which can be set at config file.\n");
+	printf("(for .eg,  \"input  =  /Data/inputfile\" )");
+	printf("Requested Parameters:\n");
+	printf("input            = input filtered images lstfile with ctf information\n");
+	printf("template         = input 2D projections templates in .hdf format\n");
+	printf("eulerfile        = euler file with euler values\n");
+	printf("angpix           = input pixel size in angstroms\n");
+	printf("phistep          = inplane rotation sampling\n");
+	printf("kk               = overlapping density parameter, default is 3.\n");
+	printf("energy           = accerlerating voltage in kV.\n");
+	printf("cs               = spherical aberration in um.\n");
+	printf("Highres          = high resolution cut \n");
+	printf("Lowres           = low resolution cut\n");
+	printf("diameter         = target diameter in pixel\n");
+	printf("Optional Parameters:\n");
+	printf("threshold        = cc threshold value, only output score beyond this value\n");
+	printf("output           = output lstfile filaname\n");
+	printf("first            = the first image id to process.\n");
+	printf("last             = the last image id to process.\n");
+	printf("window_size      = the window size which is splitted from raw IMG.\n");
+	printf("GPU_ID           = ID of GPU device.\n");
+	printf("phase_flip       = Whether use phase filp operation(1) or not(0).\n");
+	printf("overlap          = size of overlap between diff window.\n");
+	
 }
 
 bool is_little_endian() {	// check if this machine is little endian
