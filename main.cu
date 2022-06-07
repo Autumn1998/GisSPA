@@ -710,9 +710,7 @@ int main(int argc, char *argv[])
         float *scores = new float[N_tmp*3];    
         for(float euler3=0.0;euler3<360.0;euler3+=para.phi_step)
         {	 
-#ifdef DEBUG
-            printf("Now euler3 => %f / 360.0\n",euler3);
-#endif 
+            printf("Now euler3:  %f / 360.0\n",euler3);
             // rotate Image  
             rotateImage(d_rotated_image,rotated_splitted_image,para,euler3,&stream);
 
@@ -731,6 +729,7 @@ int main(int argc, char *argv[])
         delete []scores;       
         //check avail mem, for debugging
         //checkGPUMem();
+        printf("------------------------Image %d finished--------------------------------\n",n);
     }
     //Timer
     second=time(NULL);  
