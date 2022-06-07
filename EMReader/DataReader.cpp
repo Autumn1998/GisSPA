@@ -26,16 +26,6 @@ void readParameters(int argc, char *argv[], Parameters *p)
 			strcpy(p->eulerf, argv[i]);
 			continue;
 		}
-		if(option.compare("--weight")==0){
-			i++;
-			strcpy(p->snr, argv[i]);
-			continue;
-		}
-		if(option.compare("--sigma_file")==0){
-			i++;
-			strcpy(p->sigma_path, argv[i]);
-			continue;
-		}
 		if(option.compare("--kk")==0){
 			i++;
 			p->kk=atof(argv[i]);
@@ -108,8 +98,7 @@ void readParameters(int argc, char *argv[], Parameters *p)
 		}
 		printf("Undefined option: %s .Abort.\n",argv[i]);
 	}
-	p->overlap = p->d_m * 1.5;
-	p->overlap = 240;
+	p->overlap =  p->d_m ;
 	if(p->padding_size*p->padding_size % 1024 != 0 || (p->padding_size <= p->overlap))
 	{
 		printf("Padded IMG size must be N*1024 and larger than overlap{ = 1.5*d_m}\n");
@@ -125,6 +114,135 @@ void readParameters(int argc, char *argv[], Parameters *p)
 	}
 }
 
+// Parse line to para
+void parse(string line, Parameters *p)
+{
+	string option;
+	char value[200];
+	int i;
+	// get the type of line
+	for(i=0;i<line.size();i++) if(line[i] == ' ') break;
+	option = line.substr(0,i);
+	for(;i<line.size();i++) if(line[i]!=' ' && line[i]!='=') break;
+	strcpy(value, line.substr(i,line.size()-i).c_str());
+
+	// parse value and option
+	if(option.compare("input")==0){
+		i++;
+		strcpy(p->inlst, value);
+		return;
+	}
+	if(option.compare("template")==0){
+		i++;
+		strcpy(p->temp2d, value);
+		return;
+	}		
+	if(option.compare("eulerfile")==0){
+		i++;
+		strcpy(p->eulerf, value);
+		return;
+	}
+	if(option.compare("kk")==0){
+		i++;
+		p->kk=atof(value);
+		return;
+	}
+	if(option.compare("angpix")==0){
+		i++;
+		p->apix=atof(value);
+		return;
+	}
+	if(option.compare("phistep")==0){
+		i++;
+		p->phi_step=atof(value);
+		return;
+	}
+	if(option.compare("energy")==0){
+		i++;
+		p->energy=atof(value);
+		return;
+	}
+	if(option.compare("cs")==0){
+		i++;
+		p->cs=atof(value);
+		return;
+	}
+	if(option.compare("Highres")==0){
+		i++;
+		p->highres=atof(value);
+		return;
+	}
+	if(option.compare("Lowres")==0){
+		i++;
+		p->lowres=atof(value);
+		return;
+	}
+	if(option.compare("diameter")==0){
+		i++;
+		p->d_m=atof(value);
+		return;
+	}
+	if(option.compare("output")==0){
+		i++;
+		strcpy(p->outlst, value);
+		return;
+	}
+	if(option.compare("first")==0){
+		i++;
+		p->first=atoi(value);
+		return;
+	}
+	if(option.compare("last")==0){
+		i++;
+		p->last=atoi(value);
+		return;
+	}
+	if(option.compare("threshold")==0){
+		i++;
+		p->thres=atof(value);
+		return;
+	}
+	if(option.compare("GPU_ID")==0){
+		i++;
+		p->device_id=atoi(value);
+		return;
+	}
+	if(option.compare("window_size")==0){
+		i++;
+		p->padding_size=atoi(value);
+		return;
+	}
+	if(option.compare("phase_flip")==0){
+		i++;
+		p->phase_flip=atoi(value);
+		return;
+	}
+	if(option.compare("overlap")==0){
+		i++;
+		p->overlap=atoi(value);
+		return;
+	}
+	printf("Undefined option: %s .Abort.\n",value);
+}
+
+// Parse config file
+void readConfig(char *path, Parameters *p)
+{
+	std::ifstream conf(path);
+	if (!conf)
+	{
+		printf("Error => Open config file failed : %s\n\n",path);
+		return;
+	}
+    std::string buf;
+	while(!conf.eof()){	
+	    getline(conf,buf,'\n');
+		if(buf[0] == '#'|| buf == "") continue;
+		parse(buf,p);
+	}
+	
+	checkRequestPara(p);
+} 
 
 void readEulerData(char *eulerf, EulerData *euler)
 {
@@ -160,6 +278,22 @@ void readSNRWeight(char *snr,float* a,float* b,float* b2,float* bfactor,float* b
 		sscanf(buf.c_str(),"%f\t%f\t%f\t%f\t%f\t%f",a,b,b2,bfactor,bfactor2,bfactor3);
 	}
 }
+
+void checkRequestPara(Parameters *p)
+{
+	if(p->inlst[0] == ' ') printf("Error : lst/star file is requested.\n"); 
+	if(p->temp2d[0] == ' ') printf("Error : template file is requested.\n");
+	if(p->eulerf[0] == ' ') printf("Error : euler file is requested.\n");
+	if(p->apix < 0 ) printf("Error : angpix is requested.\n");
+	if(p->phi_step < 0 ) printf("Error : phistep is requested.\n");
+	if(p->kk < 0 ) printf("Error : kk is requested.\n");
+	if(p->energy < 0 ) printf("Error : energy is requested.\n");
+	if(p->cs < 0 ) printf("Error : cs is requested.\n");
+	if(p->highres < 0 ) printf("Error : highres is requested.\n");
+	if(p->lowres < 0 ) printf("Error : lowres is requested.\n");
+	if(p->d_m < 0 ) printf("Error : diameter is requested.\n");
+}
+
 
 int readInLst_and_consturctPairs(char * inlst, char *t, vector<string> *pairs, int *nn, int n)
 {

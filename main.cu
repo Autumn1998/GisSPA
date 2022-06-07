@@ -20,12 +20,6 @@ void checkGPUMem()
     printf("Avail:%zu / Total:%zu \n",avail,total);    
 }
 
-void readEMData(Parameters *para, EulerData *euler)
-{
-    readEulerData(para->eulerf,euler);
-	readSNRWeight(para->snr,&para->a,&para->b,&para->b2,&para->bfactor,&para->bfactor2,&para->bfactor3);
-}
-
 //add prefix of inlst to t. 
 //.exp  inlst:../test.lsh  t:a.mrc => t:../a.mrc
 void addPrefix(char *inlst, char *t)
@@ -605,11 +599,11 @@ int main(int argc, char *argv[])
     //Stroe Euler data
     EulerData euler;
     
-    readParameters(argc,argv,&para);
-#ifdef DEBUG
+    //readParameters(argc,argv,&para);
+    readConfig(argv[1],&para);
     para.printAllPara();
-#endif
-    readEMData(&para,&euler);
+
+    readEulerData(para.eulerf,&euler);
     N_tmp = euler.length; 
 
     //IMG id

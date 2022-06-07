@@ -21,7 +21,7 @@ if [ $1 == '0' ]; then
         --output Output/test_out.lst \
         --padding_size 256 \
         --phase_flip 0\
-        --device 8 
+        --device 2 
 
 # Test Data 2
 # Template:182*182*2295    Raw Image:5760*4092
@@ -44,7 +44,30 @@ elif [ $1 == '1' ]; then
         --output  Output/test_out.lst \
         --padding_size 320 \
         --phase_flip 0\
-        --device 0 
+        --device 2 
+
+# Test Mrc Data
+# Template:182*182*2295    Raw Image:5760*4092
+elif [ $1 == '1' ]; then
+./main  --input Data/Data_2/test.lst \
+        --angpix 1.688 \
+        --template Data/Data_2/emd_9976_apix3p336_proj.hdf \
+        --eulerfile  Data/Data_2/proj_step3_c2.lst \
+        --phistep 2 \
+        --weight Data/Data_2/snr_ncov_search.txt \
+        --kk 3 \
+        --first 0 \
+        --last 1 \
+        --energy 300 \
+        --cs 2.7 \
+        --Highres 8 \
+        --Lowres 100 \
+        --diameter 180 \
+        --threshold 7 \
+        --output  Output/test_out.lst \
+        --padding_size 320 \
+        --phase_flip 0\
+        --device 2 
 
 # Test  performance 
 elif [ $1 == '2' ]; then

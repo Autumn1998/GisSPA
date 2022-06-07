@@ -609,6 +609,7 @@ int emdata::readMRC(const char *fsp,int nodata, int n) {
 	header.zorigin=mrch->zorigin;
 	header.dx=header.dy=header.dz=0;
 	setRAlign(0,0,0);
+	return 0;
 }
 
 void emdata::ap2ri() {		// the opposite
