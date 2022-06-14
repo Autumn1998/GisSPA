@@ -20,4 +20,4 @@ last      = 1
 window_size = 320
 phase_flip  = 1
 GPU_ID      = 1
-overlap     = 42
+overlap     = 24

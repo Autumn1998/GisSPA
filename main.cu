@@ -22,7 +22,7 @@ void checkGPUMem()
 
 //add prefix of inlst to t. 
 //.exp  inlst:../test.lsh  t:a.mrc => t:../a.mrc
-void addPrefix(char *inlst, char *t)
+void addPrefix(char *inlst, char *t, int header)
 {
     int l = strlen(inlst);
     char prefix[l+50];
@@ -33,11 +33,11 @@ void addPrefix(char *inlst, char *t)
     strcat(prefix,t);
     strcpy(t,prefix);
 #ifdef DEBUG
-    printf("--raw_image        %s\n",t);
+    if(header == 0) printf("--raw_image        %s\n",t);
 #endif
 }
 
-void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t)
+void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t, int header = 0)
 {
     vector<string> pairs;
     int return_code = readInLst_and_consturctPairs(para->inlst,t,&pairs,nn,n);
@@ -45,7 +45,7 @@ void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t)
 
     //add prefix of inlst to t. 
     //.exp  inlst:../test.lsh  t:a.mrc => t:../a.mrc
-    addPrefix(para->inlst,t);
+    addPrefix(para->inlst,t, header);
     i2d_emdata->readImage(t,*nn);
     parsePairs(pairs, &para->defocus, &para->dfdiff, &para->dfang);
     
@@ -55,6 +55,27 @@ void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t)
     para->ds=1/(para->apix * para->padding_size);
 }
 
+void adjustPaddingSize(Parameters *para)
+{
+    emdata *tp = new emdata();
+    //read first temp
+    tp->readImage(para->temp2d,0);
+    
+    #ifdef DEBUG
+    printf("Temp size:         %d %d\n",tp->header.nx,tp->header.ny);
+    #endif
+    
+    if(para->padding_size < tp->header.nx || para->padding_size < tp->header.ny)
+    {
+        printf("Padding size (%d) is smaller than template.nx/ny=(%d,%d)\n",para->padding_size, tp->header.nx ,tp->header.ny);
+        para->padding_size = 0;
+        while(para->padding_size < tp->header.nx || para->padding_size < tp->header.ny) para->padding_size += 32;
+        printf("Aujust padding size to %d\n",para->padding_size);
+    }
+
+    //free heap memory
+    if(tp!=NULL) delete tp;
+}
 
 //read template(float *)
 //covert template from float* to cufftcomplex *
@@ -66,11 +87,6 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
     {
         tp->readImage(para->temp2d,J);
         float *data = tp->getData();
-        if(para->padding_size < tp->header.nx || para->padding_size < tp->header.ny)
-        {
-            printf("Padded size is smaller than template.nx /ny\n");
-            exit(-1) ;
-        }
         int sx = (para->padding_size - tp->header.nx)/2;
         int sy = (para->padding_size - tp->header.ny)/2;
         for(int j=0;j<tp->header.ny;j++)
@@ -589,7 +605,7 @@ int main(int argc, char *argv[])
     int N_tmp;
 
     //Print Help Message if no para input
-    if(argc==1){
+    if(argc==1 || (argv[1][0] == '-' && argv[1][1] == 'h')){
 		printHelpMsg(); 
 		return 0;
     }
@@ -643,17 +659,32 @@ int main(int argc, char *argv[])
     //Image to be searched 
     emdata *first_image = new emdata();
     //Read first Image
-    readRawImage(first_image,&para,para.first,&nn,t);
+    readRawImage(first_image,&para,para.first,&nn,t,1);
     //size of first IMG
     int nx = first_image->header.nx;
     int ny = first_image->header.ny;
 #ifdef DEBUG
-        printf("IMG size:           %d %d\n",nx,ny);
-        printf("Number of template: %d\n",N_tmp);
+        printf("IMG size:          %d %d\n",nx,ny);
+        printf("Number of template:%d\n",N_tmp);
 #endif
+    // check size of template, if nx/ny < padding_size , adjust padding size
+    // granatee 1.padding_size > tmp.nx  2.padding_size > tmp.ny  3.padding_size is 32*K 
+    adjustPaddingSize(&para);
+
     cudaAllocTemplateMem(N_tmp,nx,ny,&para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
         &h_templates,&d_templates,&CCG,&stream,&ra,&rb,&plan_for_temp);
     
+    //Reading Template
+    readAndPaddingTemplate(&para,h_templates,N_tmp,sigmas);
+
+    //Process edge normlization
+    //To avoid alloc memory,use CCG as tempary buf
+    edgeNormalize(N_tmp,sigmas,d_sigmas,CCG,h_templates,d_templates,h_reduction_buf,d_reduction_buf,d_means,para,&stream);
+
+    //whiten, apply mask, appy weighting ..
+    handleTemplate(N_tmp,ra,rb,h_reduction_buf,d_reduction_buf,d_means,
+        h_templates,d_templates,&para,&stream,&plan_for_temp);
+
     //free heap memory
     if(first_image!=NULL) delete first_image;
     
@@ -673,19 +704,6 @@ int main(int argc, char *argv[])
     //Loop for all Images. (Last - First) normally is 1;
     for(int n=para.first;n<para.last;n++)
     {
-        //Read Image
-        readRawImage(image,&para,n,&nn,t);
-        //Reading Template
-        readAndPaddingTemplate(&para,h_templates,N_tmp,sigmas);
-
-        //Process edge normlization
-        //To avoid alloc memory,use CCG as tempary buf
-        edgeNormalize(N_tmp,sigmas,d_sigmas,CCG,h_templates,d_templates,h_reduction_buf,d_reduction_buf,d_means,para,&stream);
-
-        //whiten, apply mask, appy weighting ..
-        handleTemplate(N_tmp,ra,rb,h_reduction_buf,d_reduction_buf,d_means,
-            h_templates,d_templates,&para,&stream,&plan_for_temp);
-
 //*************************************************
 // Process Image to be searched 
 // 0. Read
@@ -693,6 +711,8 @@ int main(int argc, char *argv[])
 // 2. Split
 // 3. doFFT
 //*************************************************   
+        //Read Image
+        readRawImage(image,&para,n,&nn,t);
         if(firstOrNot) cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,N_tmp,&para);
         firstOrNot = false;
         // 1.Put Image on GPU 2.phaseflip
