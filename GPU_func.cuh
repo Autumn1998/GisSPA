@@ -29,7 +29,7 @@ cufftResult_t :
 #define PI (3.141592654)
 #define BLOCK_SIZE 1024
 #define RA_SIZE 5000
-#ifdef DEBUG
+
 #define CUDA_CALL(F)  if( (F) != cudaSuccess ) \
   {printf("Error %s at %s:%d\n", cudaGetErrorString(cudaGetLastError()), \
    __FILE__,__LINE__); exit(-1);}
@@ -39,11 +39,7 @@ cufftResult_t :
 #define CUDA_CHECK()  if( (cudaPeekAtLastError()) != cudaSuccess ) \
   {printf("Error %s at %s:%d\n", cudaGetErrorString(cudaGetLastError()), \
    __FILE__,__LINE__-1); exit(-1);}
-#else
-#define CUDA_CALL(F) (F)
-#define CUDA_CHECK()
-#define CUFFT_CALL(F) (F)
-#endif
+
 __global__ void UpdateSigma(cufftComplex *d_templates,float *d_buf);
 __global__ void generate_mask(int l,cufftComplex *mask,float r,float *d_buf,float up,float low);
 __global__ void multiCount_dot(int l,cufftComplex *mask,cufftComplex *d_templates,float *constants,float *res);
