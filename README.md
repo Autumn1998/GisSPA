@@ -25,9 +25,9 @@ This program detect targets with orientations and tanslations.
 How to use this problem:  "./main config_file"  
 use "./main -h" to get help msg
 
-# --------------------------------config example:--------------------------------------
-# Do leave spaces on either side of '='
-# Parameter request
+--------------------------------config example:--------------------------------------
+\# Do leave spaces on either side of '='
+\# Parameter request
 input     = Data/Data_2/test.lst
 template  = Data/Data_2/emd_9976_apix3p336_proj.hdf
 eulerfile = Data/Data_2/proj_step3_c2.lst
@@ -40,7 +40,7 @@ Highres   = 8
 Lowres    = 100
 diameter  = 180
 
-# Parameter optional
+\# Parameter optional
 threshold = 7
 output    = Output/test_out.lst
 first     = 0
@@ -49,7 +49,7 @@ window_size = 320
 phase_flip  = 1
 GPU_ID      = 1
 overlap     = 24
-# --------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------
 
 HDF5 and CUDA lib are needed to run
 All parameters should be set on the config file.
