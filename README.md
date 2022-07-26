@@ -14,10 +14,11 @@ CPU version from CJ, BeiJing
 
 #### Install
 
-1.  install hdf5
-2.  replace the "LINK_FLAG" and "COMP_FLAG" in Makefile to set hdf5 available.
-3.  complie with Makefile. HDF5 denpendcy is needed to read ".hdf"
-4.  ./main + args
+1.  install hdf5 1.8
+2.  replace the "LIB_HDF5" and "INCLUDE_HDF5" (row 4 & 5) in Makefile to set hdf5 available.
+3.  complie with Makefile. 
+4.  write a config file
+5.  ./main + config_file
 
 #### Parameters
 This program detect targets with orientations and tanslations.
