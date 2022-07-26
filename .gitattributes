@@ -1,0 +1,8 @@
+Data/emd_9976_apix3p336_part2.hdf filter=lfs diff=lfs merge=lfs -text
+Data/proj_step3_c2_part1.lst filter=lfs diff=lfs merge=lfs -text
+Data/proj_step3_c2_part2.lst filter=lfs diff=lfs merge=lfs -text
+Data/test.lst filter=lfs diff=lfs merge=lfs -text
+Data/Image filter=lfs diff=lfs merge=lfs -text
+Data/config_part1 filter=lfs diff=lfs merge=lfs -text
+Data/config_part2 filter=lfs diff=lfs merge=lfs -text
+Data/emd_9976_apix3p336_part1.hdf filter=lfs diff=lfs merge=lfs -text
