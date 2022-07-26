@@ -26,6 +26,7 @@ How to use this problem:  "./main config_file"
 use "./main -h" to get help msg
 
 <br />--------------------------------config example:--------------------------------------<br />
+'''
 \# Do leave spaces on either side of '='
 \# Parameter request
 input     = Data/Data_2/test.lst
@@ -49,6 +50,7 @@ window_size = 320
 phase_flip  = 1
 GPU_ID      = 1
 overlap     = 24
+'''
 <br />--------------------------------------------------------------------------------------<br />
 
 HDF5 and CUDA lib are needed to run
