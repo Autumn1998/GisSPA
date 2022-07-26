@@ -51,30 +51,30 @@ GPU_ID      = 1
 overlap     = 24  
 <br />--------------------------------------------------------------------------------------<br />
 
-HDF5 and CUDA lib are needed to run
-All parameters should be set on the config file.
-All parameters are listed as below which can be set at config file.
-(for .eg,  "input  =  /Data/inputfile" )Requested Parameters:
-input            = input filtered images lstfile with ctf information
-template         = input 2D projections templates in .hdf format
-eulerfile        = euler file with euler values
-angpix           = input pixel size in angstroms
-phistep          = inplane rotation sampling
-kk               = overlapping density parameter, default is 3.
-energy           = accerlerating voltage in kV.
-cs               = spherical aberration in um.
-Highres          = high resolution cut 
-Lowres           = low resolution cut
-diameter         = target diameter in pixel
-Optional Parameters:
-threshold        = cc threshold value, only output score beyond this value
-output           = output lstfile filaname
-first            = the first image id to process.
-last             = the last image id to process.
-window_size      = the window size which is splitted from raw IMG.
-GPU_ID           = ID of GPU device.
-phase_flip       = Whether use phase filp operation(1) or not(0).
-overlap          = size of overlap between diff window. 
+HDF5 and CUDA lib are needed to run  
+All parameters should be set on the config file.  
+All parameters are listed as below which can be set at config file.  
+(for .eg,  "input  =  /Data/inputfile" )Requested Parameters:  
+input            = input filtered images lstfile with ctf information  
+template         = input 2D projections templates in .hdf format  
+eulerfile        = euler file with euler values  
+angpix           = input pixel size in angstroms  
+phistep          = inplane rotation sampling  
+kk               = overlapping density parameter, default is 3.  
+energy           = accerlerating voltage in kV.  
+cs               = spherical aberration in um.  
+Highres          = high resolution cut   
+Lowres           = low resolution cut  
+diameter         = target diameter in pixel  
+Optional Parameters:  
+threshold        = cc threshold value, only output score beyond this value  
+output           = output lstfile filaname  
+first            = the first image id to process.  
+last             = the last image id to process.  
+window_size      = the window size which is splitted from raw IMG.  
+GPU_ID           = ID of GPU device.   
+phase_flip       = Whether use phase filp operation(1) or not(0).  
+overlap          = size of overlap between diff window.   
 
 attention:  
 1. should be:  
