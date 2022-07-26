@@ -1,8 +1,10 @@
-# replace -Lpath -Ipath to hdf5 path.
-# path in Lpath: lib in hdf5
+# replace LIB_HDF5,INCLUDE_HDF5 to hdf5 path.
+# LIB_HDF5: lib in hdf5
 # path in Ipath: include in hdf5
-LINK_FLAG=-lcufft -L/home/liutong/software/hdf5/lib -lhdf5 
-COMP_FLAG=-I/home/liutong/software/hdf5/include -O3 -DDEBUG #-g -G 
+LIB_HDF5 = /home/liutong/software/hdf5/lib
+INCLUDE_HDF5 = /home/liutong/software/hdf5/include
+LINK_FLAG=-lcufft -L$(LIB_HDF5) -lhdf5 
+COMP_FLAG=-std=c++11 -I$(INCLUDE_HDF5) -O3 -DDEBUG #-g -G 
 
 OBJ_FILE=./Output/Objects
 CC=nvcc 
