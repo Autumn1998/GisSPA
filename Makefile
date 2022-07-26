@@ -1,5 +1,5 @@
-# replace LIB_HDF5,INCLUDE_HDF5 to hdf5 path.
-# LIB_HDF5: lib in hdf5
+# replace -Lpath -Ipath to hdf5 path.
+# path in Lpath: lib in hdf5
 # path in Ipath: include in hdf5
 LIB_HDF5 = /home/liutong/software/hdf5/lib
 INCLUDE_HDF5 = /home/liutong/software/hdf5/include

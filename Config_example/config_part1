@@ -1,0 +1,23 @@
+# Do leave spaces on either side of '='
+# Parameter request
+input     = Data/test.lst
+template  = Data/emd_9976_apix3p336_part1.hdf
+eulerfile = Data/proj_step3_c2_part1.lst
+angpix    = 3.336
+phistep   = 2 
+kk        = 3 
+energy    = 300
+cs        = 2.7
+Highres   = 8
+Lowres    = 100
+diameter  = 200
+
+# Parameter optional
+threshold = 8
+output    = Output/test_out_p1.lst
+first     = 0
+last      = 1
+window_size = 480
+phase_flip  = 1
+GPU_ID      = 1
+overlap     = 180

@@ -7,6 +7,7 @@
 #include <malloc.h>
 #include <cmath>
 #include <iostream>
+#include <sys/stat.h>
 
 using namespace std;
 
@@ -596,6 +597,41 @@ void writeScoreToDisk(int N_tmp,float *scores,Parameters para,EulerData euler,FI
     }
 }
 
+
+
+/**
+ * @brief pathConvert_Double2Single  "\\" -> "/"
+ * @param s
+ */
+ inline void pathConvert_Double2Single ( std::string& s )
+ {
+     std::string::size_type pos = 0;
+     while ( ( pos = s.find('\\', pos) ) !=  std::string::npos )
+     {
+         s.replace( pos, 1,"/" );
+         pos = pos + 2;
+     }
+ }
+ 
+inline bool create_outpath(char * path)
+{
+    int ret=0;
+    std::string tempStr(path);
+    std::string forler;
+ 
+    pathConvert_Double2Single ( tempStr );
+    for(int pos=0;pos<tempStr.size();pos++)
+    {
+        if(tempStr[pos] != '/') continue;
+        forler =  tempStr.substr( 0, pos);
+        ret = mkdir( forler.c_str(),S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        if(!ret)
+            return false;
+    }
+    return true;
+}
+
+
 int main(int argc, char *argv[])
 {
     //Timer
@@ -626,12 +662,19 @@ int main(int argc, char *argv[])
     int nn=0;
     //IMG filename
     char t[MAXPATHLEN+1];
+    //create write path
+    int rtn = create_outpath(para.outlst);
+    if(rtn < 0) 
+    {
+        printf("Out file create failed! %s\n",para.outlst);
+        return 1;
+    }
     //Used to write res
     FILE *fp=fopen(para.outlst,"wb");
     if(fp==NULL)
     {
         printf("Out file create failed! %s\n",para.outlst);
-        printf("Please confirm the path exists!\n\n");
+        printf("Please confirm the path exists!\n");
         return 1;
     }
     // Set GPU device ID

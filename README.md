@@ -7,18 +7,38 @@ CPU version from CJ, BeiJing
 #### structure
 ./deprated_code/:ignored this file   
 ./EMReader/: read .hdf and .mrc file(just read data). Extracted from EMAN1.9.   
-./main => main function   
-./GPU_func.cu(h) => function processed on GPU  
-./Makefile => complier  
-./config => example for config file
+./main.cu: main function   
+./GPU_func.cu(h): function processed on GPU  
+./Makefile: complier  
+./hdf5: the source package of hdf5  
+temp file:  
+./Data: test data  
+./Output: res for test data and obj files.  
+./Config_example: configure file to run test data.  
 
 #### Install
 
-1.  install hdf5 1.8
-2.  replace the "LIB_HDF5" and "INCLUDE_HDF5" (row 4 & 5) in Makefile to set hdf5 available.
+1.  install hdf5 1.8 (https://portal.hdfgroup.org/display/support/HDF5+1.8.21), the source is attached at ./hdft
+2.  Fill the "LIB_HDF5" and "INCLUDE_HDF5" (row 4 & 5) in Makefile with your install path to set hdf5 available.
 3.  complie with Makefile. 
 4.  write a config file
 5.  ./main + config_file
+
+#### Quick start
+-> install hdf5     
+1. cd ./hdf5  &  tar zvxf hdf5-1.8.21.tar.gz    
+2. cd hdf5-1.8.21  
+3. ./configure --prefix="your install path"  
+4. make  
+5. make check  
+6. make install  
+-> run GisSPA  
+1. vim Makfile, set LIB_HDF5="your install path"/lib,  set INCLUDE_HDF5="your install path"/include  
+2. make clean  
+3. make  
+4. ./main /Config_example  
+  
+If "Can not find libhdf5.so.10", please update the LD_LRBRARY_PATH in /etc/profile or ~/.bashrc, and source /etc/profile or ~/.bashrc.  
 
 #### Parameters
 This program detect targets with orientations and tanslations.
