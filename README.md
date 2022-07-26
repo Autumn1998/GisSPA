@@ -88,10 +88,10 @@ b)padding_size%32 = 0
 4. all imgs should have same size.  
 <br />   
 注意：    
-1.padding_size必须大于template的边长，小于raw img短边边长，并且为32的倍数，图像会被分割成为padding_size*padding_size1的子区域，overlap大小为padding_size的13%    
+1.padding_size必须大于template的边长，小于raw img短边边长，并且为32的倍数，图像会被分割成为padding_size*padding_size1的子区域，overlap大小为padding_size的13%.      
 2.padding_size过小会使并行度不足，过大会提高申请存储的时间和overlap的消耗。在显存足够的情况下，padding_size设置为320左右效果较好。但是仍需根据实际实验结果进行调试(数据量大的时候适当增大).    
-4.使用的时候,--input的文件所在的文件夹与其中包含的.MRC/.hdf文件相同,即程序在解析raw image的时候，文件所在的文件夹(前缀)与--input的输入相同  
-5.所有img的size必须相同  
+4.使用的时候,--input的文件所在的文件夹与其中包含的.MRC/.hdf文件相同,即程序在解析raw image的时候，文件所在的文件夹(前缀)与--input的输入相同.  
+5.所有img的size必须相同     
 
 #### contributor
 
