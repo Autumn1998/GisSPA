@@ -628,6 +628,12 @@ int main(int argc, char *argv[])
     char t[MAXPATHLEN+1];
     //Used to write res
     FILE *fp=fopen(para.outlst,"wb");
+    if(fp==NULL)
+    {
+        printf("Out file create failed! %s\n",para.outlst);
+        printf("Please confirm the path exists!\n\n");
+        return 1;
+    }
     // Set GPU device ID
     CUDA_CALL(  cudaSetDevice(para.device_id)  );
 
@@ -738,6 +744,7 @@ int main(int argc, char *argv[])
 
             pickPartcles(CCG,d_templates,rotated_splitted_image,h_reduction_buf,d_reduction_buf,para,&plan_for_temp,&plan_for_image,&stream,N_tmp,scores,nx,ny,euler3);
             cudaStreamSynchronize(stream);
+            
             writeScoreToDisk(N_tmp,scores,para,euler,fp,nn,t,nx,ny,euler3);
         }
         delete []scores;       
