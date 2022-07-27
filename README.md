@@ -18,7 +18,7 @@ temp file:
 
 #### Install
 
-1.  install hdf5 1.8 (https://portal.hdfgroup.org/display/support/HDF5+1.8.21), the source is attached at ./hdft
+1.  install hdf5 1.8 (https://portal.hdfgroup.org/display/support/HDF5+1.8.21), the source is attached at ./hdf5
 2.  Fill the "LIB_HDF5" and "INCLUDE_HDF5" (row 4 & 5) in Makefile with your install path to set hdf5 available.
 3.  complie with Makefile. 
 4.  write a config file
@@ -36,7 +36,8 @@ temp file:
 1. vim Makfile, set LIB_HDF5="your install path"/lib,  set INCLUDE_HDF5="your install path"/include  
 2. make clean  
 3. make  
-4. ./main /Config_example  
+4. ./main /Config_example/config
+5. The result will be find at ./Output/test_Image_bin2_output.lst. We attacted the result at ./Data_TEST/test_Image_bin2_output.lst. 
   
 If "Can not find libhdf5.so.10", please update the LD_LRBRARY_PATH in /etc/profile or ~/.bashrc, and source /etc/profile or ~/.bashrc.  
 
@@ -49,34 +50,34 @@ use "./main -h" to get help msg
 <br />--------------------------------config example:--------------------------------------<br />
 \# Do leave spaces on either side of '='  
 \# Parameter request  
-input     = Data/Data_2/test.lst  
-template  = Data/Data_2/emd_9976_apix3p336_proj.hdf  
-eulerfile = Data/Data_2/proj_step3_c2.lst  
-angpix    = 1.688  
+input     = Data_TEST/test_Image_bin2.lst 
+template  = Data_TEST/emd_9976_apix3p336_proj.hdf  
+eulerfile = Data_TEST/proj_step3_c2.lst  
+angpix    = 3.336  
 phistep   = 2   
 kk        = 3   
 energy    = 300  
 cs        = 2.7  
-Highres   = 8  
+Highres   = 9  
 Lowres    = 100  
 diameter  = 180  
   
 \# Parameter optional  
-threshold = 7  
-output    = Output/test_out.lst  
+threshold = 8  
+output    = Data_TEST/test_Image_bin2_output.lst 
 first     = 0  
-last      = 1  
-window_size = 320  
+last      = 12  
+window_size = 448  
 phase_flip  = 1  
 GPU_ID      = 1  
-overlap     = 24  
+overlap     = 180  
 <br />--------------------------------------------------------------------------------------<br />
 
 HDF5 and CUDA lib are needed to run  
 All parameters should be set on the config file.  
 All parameters are listed as below which can be set at config file.  
 (for .eg,  "input  =  /Data/inputfile" )Requested Parameters:  
-input            = input filtered images lstfile with ctf information  
+input            = input contast-inverted images lstfile with ctf information  
 template         = input 2D projections templates in .hdf format  
 eulerfile        = euler file with euler values  
 angpix           = input pixel size in angstroms  
@@ -86,7 +87,7 @@ energy           = accerlerating voltage in kV.
 cs               = spherical aberration in um.  
 Highres          = high resolution cut   
 Lowres           = low resolution cut  
-diameter         = target diameter in pixel  
+diameter         = target diameter in pixels 
 Optional Parameters:  
 threshold        = cc threshold value, only output score beyond this value  
 output           = output lstfile filaname  
@@ -94,7 +95,7 @@ first            = the first image id to process.
 last             = the last image id to process.  
 window_size      = the window size which is splitted from raw IMG.  
 GPU_ID           = ID of GPU device.   
-phase_flip       = Whether use phase filp operation(1) or not(0).  
+phase_flip       = Whether do filtering on images, operation(1) or not(0, in case of input being filtered already).  
 overlap          = size of overlap between diff window.   
 
 attention:  
@@ -113,7 +114,33 @@ b)padding_size%32 = 0
 4.使用的时候,--input的文件所在的文件夹与其中包含的.MRC/.hdf文件相同,即程序在解析raw image的时候，文件所在的文件夹(前缀)与--input的输入相同.  <br />
 5.所有img的size必须相同     <br />
 
-#### contributor
+#### Python script
+
+relion2lst_only_particles.py (rewritten from Wen Jiang's script from JSPR)   
+This script read particles.star file and generate file in .lst format and write images in .hdf format.   
+Please run ./relion2lst_only_particles.py -h for details.  
+
+remove_repeat_particles_from_list.py   
+<Detection file> <number of windows> <center thres> <euler thres> <output>
+This python script is used to merge duplicate detections:  
+<Dection file> = Data_TEST/test_Image_bin2_output.lst  
+<number of windows> = last-first (eg. 12)  
+<center thres> = Threshold of coordinate distance (eg. 4)  
+<euler thres> = Threshold of euler distance (eg. 6)    
+<outpot> = Merged list filename (eg. Data_TEST/test_Image_bin2_output_merged.lst)    
+Detections that are within both the center and euler thresholds are considered to be duplicate detections   
+
+convert_my-output_to_relion.py  
+<Merged lstfile> <contast-inverted lstfile> <scale factor> <scaled window size> <unbinned pixel size> <out star file>  
+<Merged lstfile> = detection file after removing duplicate detections (eg. Data_TEST/test_Image_bin2_output_merged.lst)  
+<contast-inverted lstfile> = contast-inverted images lstfile with ctf information (eg. test_Image_bin2.lst)  
+<scale factor> = scale factor of images used in localization (eg. 2)  
+<scaled window size> = window size in localization (eg. 720)  
+<unbinned pixel size> = pixel size in original micrograph (eg. 1.668)  
+<out star file> = output file in .star format  
+
+
+#### contributor  
 
 LT & CJ.
 
