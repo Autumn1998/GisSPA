@@ -65,13 +65,14 @@ temp file:
 4. ./main ./Data_TEST/config   
 
 WARNING:The Data_TEST need at least 13GB memory at GPU!     
-If temp_size = 10,10 and img_size = 10,10, check the git lfs.  
-   
-The result will be find at ./Output/test_Image_bin2_output.lst. We attacted the result at ./Data_TEST/test_Image_bin2_output.lst.   
-  
+If error occurred and temp_size = 10,10 and img_size = 10,10, check the git lfs.  
 If "error while loading shared libraries", check your LD_LIBRARY_PATH, and source. If it not work, do  
 	cp "your hdf5 install path"/lib/libhdf5.so.10 .  
 Make ./main  and libhdf5.so.10 in the same path.   
+
+The output will be find at GisSPA/Output/test_Image_output.lst. We attacted the result at ./Data_TEST/Output/test_Image_output.lst.   
+  
+
 
 #### Parameters
 This program detect targets with orientations and tanslations.
