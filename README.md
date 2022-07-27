@@ -34,7 +34,8 @@ temp file:
 4. ./configure --prefix="your hdf5 install path"   
 5. make   
 6. make install   
-7. set LD_LRBRARY_PATH="your hdf5 install path"/lib:LD_LRBRARY_PATH at /etc/profile or ~/.bashrc    
+7. export LD_LIBRARY_PATH="your hdf5 install path"/lib:$LD_LIBRARY_PATH  
+   at /etc/profile or ~/.bashrc    
 8. source /etc/profile or ~/.bashrc   
   
 -> run GisSPA   
