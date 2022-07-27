@@ -24,22 +24,27 @@ temp file:
 4.  write a config file
 5.  ./main + config_file
 
-#### Quick start
+#### Quick start  
+  
 -> install hdf5     
-1. cd ./hdf5  &  tar zvxf hdf5-1.8.21.tar.gz    
-2. cd hdf5-1.8.21  
-3. ./configure --prefix="your install path"  
-4. make  
-5. make check  
-6. make install  
--> run GisSPA  
+
+1. cd ./hdf5  &  tar zvxf hdf5-1.8.21.tar.gz     
+2. cd hdf5-1.8.21   
+3. ./configure --prefix="your install path"   
+4. make   
+5. make install   
+6. set LD_LRBRARY_PATH="your install path"/lib:LD_LRBRARY_PATH at /etc/profile or ~/.bashrc    
+7. source /etc/profile or ~/.bashrc   
+  
+-> run GisSPA   
+   
 1. vim Makfile, set LIB_HDF5="your install path"/lib,  set INCLUDE_HDF5="your install path"/include  
 2. make clean  
 3. make  
-4. ./main /Config_example/config
-5. The result will be find at ./Output/test_Image_bin2_output.lst. We attacted the result at ./Data_TEST/test_Image_bin2_output.lst. 
-  
-If "Can not find libhdf5.so.10", please update the LD_LRBRARY_PATH in /etc/profile or ~/.bashrc, and source /etc/profile or ~/.bashrc.  
+4. ./main ./Config_example/config   
+   
+The result will be find at ./Output/test_Image_bin2_output.lst. We attacted the result at ./Data_TEST/test_Image_bin2_output.lst.   
+
 
 #### Parameters
 This program detect targets with orientations and tanslations.
