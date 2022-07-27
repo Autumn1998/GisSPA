@@ -33,7 +33,6 @@ temp file:
 3. cd hdf5-1.8.21   
 4. ./configure --prefix="your hdf5 install path"   
 5. make   
-If "can not create /Output/Objects/main.o", mkdir /Output/Objects
 6. make install   
 7. set LD_LRBRARY_PATH="your hdf5 install path"/lib:LD_LRBRARY_PATH at /etc/profile or ~/.bashrc    
 8. source /etc/profile or ~/.bashrc   
@@ -43,6 +42,7 @@ If "can not create /Output/Objects/main.o", mkdir /Output/Objects
 1. vim Makfile, set LIB_HDF5="your hdf5 install path"/lib,  set INCLUDE_HDF5="your hdf5 install path"/include  
 2. make clean  
 3. make  
+	If "can not create /Output/Objects/main.o", mkdir /Output/Objects  
 4. ./main ./Data_TEST/config   
 
 WARNING:The Data_TEST need at least 13GB memory at GPU!     
