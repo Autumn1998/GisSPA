@@ -1,7 +1,7 @@
 # Do leave spaces on either side of '='
 # Parameter request
 input     = Data_TEST/test_Image_bin2.lst
-template  = Data_TEST/emd_9976_apix3p336_proj.hdf
+template  = Data_TEST/emd_9976_apix3p336.mrc
 eulerfile = Data_TEST/proj_step3_c2.lst
 angpix    = 3.336
 phistep   = 2 
