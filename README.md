@@ -1,5 +1,9 @@
 # GisSPA
 
+##### ATTENTION PLEASE  
+The  big file Data_TEST in github is stored by LFS,  so the "git lfs" is necessary to be installed before CLONE THIS PROJECT!!!!!!!!!!!!!!!!       
+    
+
 #### Introduction
 GPU parallel for isspa, pick particle with CC.  
 CPU version from CJ, BeiJing
@@ -32,9 +36,11 @@ temp file:
 1. sudo apt-get update  
 2. sudo apt-get install git-lfs  
 3. git lfs install  
+4. git lfs clone https://github.com/Autumn1998/GisSPA.git   
   
 -> install hdf5     
 
+0. cd GisSPA  
 1. cd ./hdf5 
 2. tar zvxf hdf5-1.8.21.tar.gz     
 3. cd hdf5-1.8.21   
