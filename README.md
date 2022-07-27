@@ -1,7 +1,7 @@
 # GisSPA
 
 ##### ATTENTION PLEASE  
-The  big file Data_TEST in github is stored by LFS,  so the "git lfs" is necessary to be installed before CLONE THIS PROJECT!!!!!!!!!!!!!!!!       
+The  big file Data_TEST in github is stored by LFS,  so the "git lfs" is necessary to be installed before CLONING THIS PROJECT!!!!!!!!!!!!!!!!       
   
 Time for compling: short     
 No need to install  
