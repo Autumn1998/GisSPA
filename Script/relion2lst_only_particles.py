@@ -96,10 +96,10 @@ will be extracted from the STAR file and will be automatically processed through
 	fnum=0			# image number in new file
 	params = []
 	for i in xrange(len(star["rlnImageName"])):
-		name=star["rlnImageName"][i].split("@")[1]
-		name=os.path.join(topdir, name)
+                xx=len(star["rlnImageName"][i].split("/"))
+                name=star["rlnImageName"][i].split("@")[1]
+		#name=os.path.join(topdir, name)
 		imgnum=int(star["rlnImageName"][i].split("@")[0])-1
-		
 		if (star.has_key("rlnMagnificationCorrection")): #for old version relion star filr
 			apix = 1e4*float(star["rlnDetectorPixelSize"][i])/(float(star["rlnMagnification"][i])*float(star["rlnMagnificationCorrection"][i]))
 		else:
@@ -110,7 +110,6 @@ will be extracted from the STAR file and will be automatically processed through
 			nx=hdr["nx"]
 			ny=hdr["ny"]
 			oldname=name
-
 		if i==0 or star["rlnDefocusU"][i-1]!=star["rlnDefocusU"][i]:
                         #this line will not run when i==0 (the 1st loop)
 			if micronum>0 and options.verbose>1:
@@ -119,7 +118,9 @@ will be extracted from the STAR file and will be automatically processed through
 			micronum+=1
 			fnum=0  #when reaching a new micrograph, fnum need to start from 0 for write_image to a new good particle HDF stack
 	#		microname="particles/{}_{:04d}.hdf".format(base_name(name),micronum)
-			microname=(directory+"/{}.hdf").format(base_name(name),micronum)
+                        name2=star["rlnImageName"][i].split("@")[1].split('/')[xx-1]
+			microname=(directory+"/{}.hdf").format(base_name(name2),micronum)
+                        
 		boxsize = options.boxsize
 		if boxsize<=0:
 			boxsize=ny
@@ -162,7 +163,7 @@ will be extracted from the STAR file and will be automatically processed through
 		#alt, az, phi, x, y = relion2EMAN2(star["rlnAngleRot"][i], star["rlnAngleTilt"][i], star["rlnAnglePsi"][i], star["rlnOriginX"][i], star["rlnOriginY"][i], boxsize)
 
 		#all particles in eman2/particles folder are good particles, so the 1st column in .lst file should be 0,1,2,3,4,... in order
-		new_file = os.path.relpath(microname, os.getcwd())
+                new_file = os.path.relpath(microname, os.getcwd())
 		param = [fnum, new_file, defocus, dfdiff, dfang, x, y]
 
 		if (options.allrelion):

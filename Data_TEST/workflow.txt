@@ -1,0 +1,15 @@
+relion_preprocess --i test_micrograph_ctf.star --coord_dir ./ --coord_suffix _coord.star --part_star test_Image.star --part_dir Extract --extract --extract_size 1440 --scale 720 --invert_contrast
+#### Extract clips from micrograph and invert contrast
+
+../Script/relion2lst_only_particles.py test_Image.star --lst test_Image.lst --dir Image
+####Convert to .lst format
+
+~/GisSPA-main/main config
+####Localize proteins in images. If you are prompted for out of memory, you can split the projection into multiple groups
+
+../Script/remove_repeat_particles_from_list.py Output/test_Image_output.lst 1 4 6 Output/test_Image_output_merge.lst
+####Merge repeat detections
+
+../Script/convert_my-output_to_relion.py Output/test_Image_output_merge.lst test_Image.lst 2 720 1.668 Output/test_Image_output_merge.star
+####Convert lstfile to .star format for further processing in RELION3
+

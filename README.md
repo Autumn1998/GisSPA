@@ -43,7 +43,9 @@ If "can not create /Output/Objects/main.o", mkdir /Output/Objects
 1. vim Makfile, set LIB_HDF5="your hdf5 install path"/lib,  set INCLUDE_HDF5="your hdf5 install path"/include  
 2. make clean  
 3. make  
-4. ./main ./Config_example/config   
+4. ./main ./Data_TEST/config   
+
+WARNING:The Data_TEST need at least 13GB memory at GPU!     
    
 The result will be find at ./Output/test_Image_bin2_output.lst. We attacted the result at ./Data_TEST/test_Image_bin2_output.lst.   
   
@@ -60,7 +62,7 @@ use "./main -h" to get help msg
 <br />--------------------------------config example:--------------------------------------<br />
 \# Do leave spaces on either side of '='  
 \# Parameter request  
-input     = Data_TEST/test_Image_bin2.lst 
+input     = Data_TEST/test_Image.lst 
 template  = Data_TEST/emd_9976_apix3p336_proj.hdf  
 eulerfile = Data_TEST/proj_step3_c2.lst  
 angpix    = 3.336  
@@ -74,12 +76,12 @@ diameter  = 180
   
 \# Parameter optional  
 threshold = 8  
-output    = Data_TEST/test_Image_bin2_output.lst 
+output    = Data_TEST/test_Image_output.lst 
 first     = 0  
 last      = 12  
-window_size = 448  
+window_size = 480  
 phase_flip  = 1  
-GPU_ID      = 1  
+GPU_ID      = 0  
 overlap     = 180  
 <br />--------------------------------------------------------------------------------------<br />
 
@@ -127,7 +129,7 @@ b)padding_size%32 = 0
 #### Python script
 
 relion2lst_only_particles.py (rewritten from Wen Jiang's script from JSPR)   
-This script read particles.star file and generate file in .lst format and write images in .hdf format.   
+This script read particles.star file and generate file in .lst format and rewrite images in .hdf format.   
 Please run ./relion2lst_only_particles.py -h for details.  
 
 remove_repeat_particles_from_list.py   
@@ -142,13 +144,15 @@ Detections that are within both the center and euler thresholds are considered t
 
 convert_my-output_to_relion.py  
 <Merged lstfile> <contast-inverted lstfile> <scale factor> <scaled window size> <unbinned pixel size> <out star file>  
-<Merged lstfile> = detection file after removing duplicate detections (eg. Data_TEST/test_Image_bin2_output_merged.lst)  
-<contast-inverted lstfile> = contast-inverted images lstfile with ctf information (eg. test_Image_bin2.lst)  
+<Merged lstfile> = detection file after removing duplicate detections (eg. Data_TEST/test_Image_output_merged.lst)  
+<contast-inverted lstfile> = contast-inverted images lstfile with ctf information (eg. test_Image.lst)  
 <scale factor> = scale factor of images used in localization (eg. 2)  
 <scaled window size> = window size in localization (eg. 720)  
 <unbinned pixel size> = pixel size in original micrograph (eg. 1.668)  
 <out star file> = output file in .star format  
 
+A complete workflow of the demo data can be found at folder Data_TEST/workflow.txt
+##Micrographs are clipped into multiple images to save GPU memory. In case of sufficient GPU memory, this step can be ignored, but the contast of micrographs must be inverted.
 
 #### contributor  
 

@@ -1,0 +1,13 @@
+#LST
+0	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=720.0,720.0
+1	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=720.0,2046.0
+2	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=720.0,3372.0
+3	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=2160.0,720.0
+4	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=2160.0,2046.0
+5	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=2160.0,3372.0
+6	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=3600.0,720.0
+7	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=3600.0,2046.0
+8	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=3600.0,3372.0
+9	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=5040.0,720.0
+10	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=5040.0,2046.0
+11	Image/SPAT1grid3_11_000_-15.0_Jun13_22.42.06.tif_DW.hdf	defocus=3.14467714845	dfdiff=0.01991894535	dfang=83.13611	center=5040.0,3372.0

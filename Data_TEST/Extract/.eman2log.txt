@@ -1,0 +1,2 @@
+2022/07/27 09:31:19	incomplete         	 53239/    -1	user-80	../../../../../script/relion2lst_only_particles.py particles.star --lst Data_TEST/particles.lst --dir ../../Data_TEST/EMAN
+2022/07/27 09:31:34	incomplete         	 53302/    -1	user-80	../../../../../script/relion2lst_only_particles.py particles.star --lst Data_TEST/particles.lst
