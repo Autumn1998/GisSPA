@@ -466,7 +466,7 @@ int emdata::readMRC(const char *fsp,int nodata, int n) {
 		startz=n;
 	}
 	else {
-		if(n!=-1) printf("WARNING from readMRC: section n=%d is out of valid range [0,%d] and thus ignored, whole map will be read in\n",n,mrch->nz-1); 	
+		//if(n!=-1) printf("WARNING from readMRC: section n=%d is out of valid range [0,%d] and thus ignored, whole map will be read in\n",n,mrch->nz-1); 	
 		nz=mrch->nz;
 		startz=0;
 	}
