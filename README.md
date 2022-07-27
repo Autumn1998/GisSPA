@@ -57,6 +57,7 @@ temp file:
   
 -> run GisSPA   
    
+0. cd GisSPA  
 1. vim Makfile, set LIB_HDF5="your hdf5 install path"/lib,  set INCLUDE_HDF5="your hdf5 install path"/include  
 2. make clean  
 3. make  
