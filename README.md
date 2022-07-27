@@ -2,7 +2,11 @@
 
 ##### ATTENTION PLEASE  
 The  big file Data_TEST in github is stored by LFS,  so the "git lfs" is necessary to be installed before CLONE THIS PROJECT!!!!!!!!!!!!!!!!       
-    
+  
+Time for compling: short     
+No need to install  
+In Data_TEST, process one image(720*720) with A100 need  40 seconds.   
+Template is 182*182*2295  
 
 #### Introduction
 GPU parallel for isspa, pick particle with CC.  
