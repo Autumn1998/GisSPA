@@ -18,6 +18,7 @@ temp file:
 
 #### Install
 
+0.  install git lfs to get the test_Data
 1.  install hdf5 1.8 (https://portal.hdfgroup.org/display/support/HDF5+1.8.21), the source is attached at ./hdf5
 2.  Fill the "LIB_HDF5" and "INCLUDE_HDF5" (row 4 & 5) in Makefile with your install path to set hdf5 available.
 3.  complie with Makefile. 
@@ -25,6 +26,12 @@ temp file:
 5.  ./main + config_file
 
 #### Quick start  
+
+-> inatll git lfs  
+
+1. sudo apt-get update  
+2. sudo apt-get install git-lfs  
+3. git lfs install  
   
 -> install hdf5     
 
@@ -47,6 +54,7 @@ temp file:
 4. ./main ./Data_TEST/config   
 
 WARNING:The Data_TEST need at least 13GB memory at GPU!     
+If temp_size = 10,10 and img_size = 10,10, check the git lfs.  
    
 The result will be find at ./Output/test_Image_bin2_output.lst. We attacted the result at ./Data_TEST/test_Image_bin2_output.lst.   
   
