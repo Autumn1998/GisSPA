@@ -20,7 +20,7 @@ CPU version from CJ, BeiJing
 ./Makefile: complier  
 ./hdf5: the source package of hdf5  
 temp file:  
-./Data: test data  
+./Data_TEST: test data  
 ./Output: res for test data and obj files.  
 ./Config_example: configure file to run test data.  
 
