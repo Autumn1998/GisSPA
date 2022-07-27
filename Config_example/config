@@ -19,5 +19,5 @@ first     = 0
 last      = 12 
 window_size = 448
 phase_flip  = 1
-GPU_ID      = 2 
+GPU_ID      = 0
 overlap     = 180

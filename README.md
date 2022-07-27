@@ -28,23 +28,28 @@ temp file:
   
 -> install hdf5     
 
-1. cd ./hdf5  &  tar zvxf hdf5-1.8.21.tar.gz     
-2. cd hdf5-1.8.21   
-3. ./configure --prefix="your install path"   
-4. make   
-5. make install   
-6. set LD_LRBRARY_PATH="your install path"/lib:LD_LRBRARY_PATH at /etc/profile or ~/.bashrc    
-7. source /etc/profile or ~/.bashrc   
+1. cd ./hdf5 
+2. tar zvxf hdf5-1.8.21.tar.gz     
+3. cd hdf5-1.8.21   
+4. ./configure --prefix="your hdf5 install path"   
+5. make   
+If "can not create /Output/Objects/main.o", mkdir /Output/Objects
+6. make install   
+7. set LD_LRBRARY_PATH="your hdf5 install path"/lib:LD_LRBRARY_PATH at /etc/profile or ~/.bashrc    
+8. source /etc/profile or ~/.bashrc   
   
 -> run GisSPA   
    
-1. vim Makfile, set LIB_HDF5="your install path"/lib,  set INCLUDE_HDF5="your install path"/include  
+1. vim Makfile, set LIB_HDF5="your hdf5 install path"/lib,  set INCLUDE_HDF5="your hdf5 install path"/include  
 2. make clean  
 3. make  
 4. ./main ./Config_example/config   
    
 The result will be find at ./Output/test_Image_bin2_output.lst. We attacted the result at ./Data_TEST/test_Image_bin2_output.lst.   
-
+  
+If "error while loading shared libraries", check your LD_LIBRARY_PATH, and source. If it not work, do  
+	cp "your hdf5 install path"/lib/libhdf5.so.10 .  
+Make ./main  and libhdf5.so.10 in the same path.   
 
 #### Parameters
 This program detect targets with orientations and tanslations.
