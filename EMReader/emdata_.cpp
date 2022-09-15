@@ -418,13 +418,17 @@ int emdata::readMRC(const char *fsp,int nodata, int n) {
 			zero();
 			return -1;
 		}
-		
 		//if (strrchr(fsp,'/')==NULL) setName(fsp);
 		//else setName(strrchr(fsp,'/')+1);
 		setPath(fsp);
 	}
 
-	if (!fread(mrch,sizeof(mrcH),1,in)) { setSize(10,10,1); zero(); return -1; }
+	if (!fread(mrch,sizeof(mrcH),1,in)) 
+	{ 
+		setSize(10,10,1); 
+		zero(); 
+		return -1; 
+	}
 	
 	mrch->labels[0][79]=0;
 	setName(mrch->labels[0]);

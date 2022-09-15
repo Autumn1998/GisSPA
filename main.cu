@@ -46,7 +46,7 @@ void readRawImage(emdata *i2d_emdata,Parameters *para,int n, int *nn, char* t, i
 
     //add prefix of inlst to t. 
     //.exp  inlst:../test.lsh  t:a.mrc => t:../a.mrc
-    addPrefix(para->inlst,t, header);
+    addPrefix(para->inlst, t, header);
     i2d_emdata->readImage(t,*nn);
     parsePairs(pairs, &para->defocus, &para->dfdiff, &para->dfang);
     
@@ -519,6 +519,10 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
             //compute CCG
             compute_corner_CCG<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(CCG,d_templates,rotated_splitted_image,l,i+j*para.block_x);
             CUDA_CHECK();
+
+            //compute avg/vairance
+            compute_avg_CCG<<<l*l/BLOCK_SIZE,BLOCK_SIZE,0,*stream >>>(CCG,l,N);
+
             //Inplace IFT
             CUFFT_CALL(  cufftExecC2C(*template_plan, CCG, CCG, CUFFT_INVERSE)  );
             //Ingore padded 0 at raw IMG

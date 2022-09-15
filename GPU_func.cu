@@ -517,6 +517,44 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 
 }
 
+// compute the avg of CCG in all templates
+__global__ void compute_avg_CCG(cufftComplex *CCG, int l, int N_tmp)
+{
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	//Area of rectangle, l^2
+	int interval = l*l;
+
+	if(i >= interval) return;
+	
+	cufftComplex avg;
+	avg.x = 0;
+	avg.y = 0;
+	// compute average
+	for(int n=0;n<N_tmp;n++) 
+	{
+		avg.x += CCG[ n*interval + i ].x;
+		avg.y += CCG[ n*interval + i ].y;
+	}
+	avg.x /= N_tmp;
+	avg.y /= N_tmp;
+
+	cufftComplex var;
+	// compute vairance
+	for(int n=0;n<N_tmp;n++) 
+	{
+		var.x += ( CCG[ n*interval + i ].x-avg.x )*( CCG[ n*interval + i ].x-avg.x );
+		var.y += ( CCG[ n*interval + i ].y-avg.y )*( CCG[ n*interval + i ].y-avg.y );
+	}
+	var.x /= N_tmp;
+	var.y /= N_tmp;
+
+	for(int n=0;n<N_tmp;n++) 
+	{
+		CCG[ n*interval + i ].x = ( CCG[ n*interval + i ].x - avg.x )/var.x;
+		CCG[ n*interval + i ].y = ( CCG[ n*interval + i ].y - avg.y )/var.y;
+	}
+}
+
 //"MAX" reduction for *odata : return max{odata[i]},i
 //"SUM" reduction for *odata : return sum{odata[i]},sum{odata[i]^2}
 __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,int x_bound,int y_bound)
