@@ -55,7 +55,6 @@ __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,
 __global__ void rotate_subIMG(cufftComplex *d_image,cufftComplex *d_rotated_image,float e,int l);
 __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap);
 __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftComplex *IMG, int l, int block_id);
-__global__ void compute_avg_CCG(cufftComplex *CCG, int l, int N_tmp);
 __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,int x_bound, int y_bound);
 __global__ void scale(cufftComplex *data,int l2);
 __global__ void clear_image(cufftComplex *data);
