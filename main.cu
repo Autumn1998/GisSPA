@@ -519,12 +519,11 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rota
             //compute CCG
             compute_corner_CCG<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(CCG,d_templates,rotated_splitted_image,l,i+j*para.block_x);
             CUDA_CHECK();
-
+            //Inplace IFT
+            CUFFT_CALL(  cufftExecC2C(*template_plan, CCG, CCG, CUFFT_INVERSE)  );
             //compute avg/vairance
             compute_avg_CCG<<<l*l/BLOCK_SIZE,BLOCK_SIZE,0,*stream >>>(CCG,l,N);
 
-            //Inplace IFT
-            CUFFT_CALL(  cufftExecC2C(*template_plan, CCG, CCG, CUFFT_INVERSE)  );
             //Ingore padded 0 at raw IMG
             int x_bound = nx - i*(l-para.overlap);
             int y_bound = ny - j*(l-para.overlap);
