@@ -13,6 +13,7 @@ Lowres    = 100
 diameter  = 200
 
 # Parameter optional
+norm_type = 1
 threshold = 8
 output    = Output/test_Image_output.lst
 first     = 0
