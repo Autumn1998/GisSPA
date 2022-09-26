@@ -27,6 +27,7 @@ struct Parameters
 	int template_z = 0;
 	int block_x = 0;
 	int block_y = 0;
+	int norm_type = 0;
 
 	//optional para
 	int first=-1,last=-1;
@@ -62,6 +63,7 @@ struct Parameters
 		printf("--GPU_ID           %d\n",device_id);
 		printf("--phase_flip       %d\n",phase_flip);
 		printf("--overlap          %d\n",overlap);
+		printf("--norm_type        %d\n",norm_type);
 
 		printf("Parameter fixed:\n");
 		printf("--a                %f\n",a);

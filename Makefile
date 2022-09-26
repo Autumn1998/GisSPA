@@ -3,6 +3,8 @@
 # path in Ipath: include in hdf5
 LIB_HDF5 = "hdf5_path"/lib
 INCLUDE_HDF5 = "hdf5_path"/include
+LIB_HDF5 = /home/liutong/software/hdf5/lib
+INCLUDE_HDF5 = /home/liutong/software/hdf5/include
 LINK_FLAG=-lcufft -L$(LIB_HDF5) -lhdf5 
 COMP_FLAG=-std=c++11 -I$(INCLUDE_HDF5) -O3 -DDEBUG #-g -G 
 

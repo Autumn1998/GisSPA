@@ -222,6 +222,11 @@ void parse(string line, Parameters *p)
 		p->overlap=atoi(value);
 		return;
 	}
+	if(option.compare("norm_type")==0){
+		i++;
+		p->norm_type=atoi(value);
+		return;
+	}
 	printf("Undefined option: %s .Abort.\n",value);
 }
 

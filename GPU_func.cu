@@ -458,7 +458,6 @@ __global__ void rotate_subIMG(cufftComplex *d_image,cufftComplex *d_rotated_imag
 
 	// res <=> data[i+j*nx] after rotation
 	d_rotated_image[id].x = res;
-
 }
 
 
@@ -514,35 +513,47 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 		CCG[i].x *= -1;
 		CCG[i].y *= -1;
 	}
-
 }
 
 // compute the avg of CCG in all templates
-__global__ void compute_avg_CCG(cufftComplex *CCG, int l, int N_tmp)
+__global__ void add_CCG_to_sum(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int N_tmp, int block_id)
 {
 	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
 	//Area of rectangle, l^2
 	int interval = l*l;
+	int off = block_id * interval;
 
-	if(i >= interval) return;
-	
-	float avg=0,var=0;
-
-	// compute average
-	for(int n=0;n<N_tmp;n++) avg += CCG[ n*interval + i ].x;
-	avg /= N_tmp;
-
-	// compute vairance
-	for(int n=0;n<N_tmp;n++) var += ( CCG[ n*interval + i ].x-avg )*( CCG[ n*interval + i ].x-avg );
-	var /= N_tmp;
-
-	for(int n=0;n<N_tmp;n++) CCG[ n*interval + i ].x = ( CCG[ n*interval + i ].x - avg )/var;
+	// compute average & vairance
+	for(int n=0;n<N_tmp;n++) 
+	{
+		float cur = CCG[ n*interval + i ].x / interval;
+		CCG_sum[off+i].x += cur;
+		CCG_sum[off+i].y += (cur*cur);
+	}
 
 }
 
+// update CCG val use avgeage & variance
+__global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int N_tmp, int N_euler, int block_id)
+{
+	//On this function,block means subimage splitted from IMG, not block ON GPU
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	//Local id corresponding to splitted IMG 
+	int local_id = i%(l*l);
+	float total_n = N_tmp*N_euler;
+	int off = block_id * l*l;
+
+	float avg = CCG_sum[off+local_id].x/total_n;
+	float var = sqrtf(CCG_sum[off+local_id].y/total_n - avg*avg);
+
+	float cur = CCG[i].x  / l / l ;
+	CCG[i].x = var>0 ? (cur - avg)/var:cur;
+}
+
+
 //"MAX" reduction for *odata : return max{odata[i]},i
 //"SUM" reduction for *odata : return sum{odata[i]},sum{odata[i]^2}
-__global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,int x_bound,int y_bound)
+__global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m)
 {
 	extern __shared__ float sdata[];
     // each thread loads one element from global to shared mem
@@ -554,6 +565,7 @@ __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,
     int y = local_id / l;
 
 	sdata[tid] = odata[i].x;
+
 	//if(x>=x_bound || y>=y_bound ||x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
 	if(x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
 	sdata[tid+blockDim.x] = local_id;
@@ -580,6 +592,42 @@ __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m,
 		res[blockIdx.x*4+1] = sdata[blockDim.x];
 		res[blockIdx.x*4+2] = sdata[2*blockDim.x];
 		res[blockIdx.x*4+3] = sdata[3*blockDim.x];
+	}
+
+}
+
+//"MAX" reduction for *odata : return max{odata[i]},i
+__global__ void get_peak_pos(cufftComplex *odata,float *res,int l,float d_m)
+{
+	extern __shared__ float sdata[];
+    // each thread loads one element from global to shared mem
+    int tid = threadIdx.x;
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	int image_size = l*l;
+    int local_id = i % image_size;
+    int x = local_id % l;
+    int y = local_id / l;
+	
+	sdata[tid] = odata[i].x;
+	if(x<l/5 || x>l-l/5 || y<l/5 || y>l-l/5 ) sdata[tid] = 0;
+	sdata[tid+blockDim.x] = local_id;
+	__syncthreads();
+
+	for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
+		if(tid<s)
+		{
+			//find max
+			if(sdata[tid+s]>sdata[tid]){
+				sdata[tid] = sdata[tid+s];
+				sdata[tid+blockDim.x] = sdata[tid+blockDim.x+s];
+			}
+		}
+		__syncthreads();
+	}
+	if(tid==0){
+		res[blockIdx.x*2] = sdata[0];
+		res[blockIdx.x*2+1] = sdata[blockDim.x];
+		//for(int bid = 465836; bid <= 467861; bid += 225) if(blockIdx.x == bid)printf("bid:%d Max val:%f pos:%f\n",bid,sdata[0],sdata[blockDim.x]);
 	}
 
 }
