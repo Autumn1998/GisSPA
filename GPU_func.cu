@@ -461,6 +461,7 @@ __global__ void rotate_subIMG(cufftComplex *d_image,cufftComplex *d_rotated_imag
 }
 
 
+
 __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap)
 {
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -504,6 +505,7 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 	// ' means conjugate
 	CCG[i].x = (IMG[j].x*Tl[i].x+IMG[j].y*Tl[i].y);
 	CCG[i].y = (IMG[j].y*Tl[i].x-IMG[j].x*Tl[i].y);
+	//if(i<l2 && local_x == 10 && local_y == 50) printf("(%d %d) %lld-> CCG:(%f,%f) = IMG:(%f,%f)· TL:(%f,%f)\n",local_x,local_y,i,CCG[i].x,CCG[i].y,IMG[j].x,IMG[j].y,Tl[i].x,Tl[i].y);
 
 	//Move center to around
 	int of = (l/2)%2,st;
@@ -546,6 +548,14 @@ __global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int 
 	float avg = CCG_sum[off+local_id].x/total_n;
 	float var = sqrtf(CCG_sum[off+local_id].y/total_n - avg*avg);
 
+	/*
+	int bidx = l/6;
+	int bidy = l/6;
+	int tmpx = local_id % l;
+	int tmpy = local_id / l;
+	if(i == local_id && tmpx >bidx && tmpx <bidx+5 &&  tmpy>bidy && tmpy < bidy+5 && block_id == 0)
+	printf(">>>>>>>>>>>CCG[%lld] = %f  l:%d avg:%f  var:%f loadl_id:%d %d  s2:%f  x2:%f \n",i,CCG[i].x, l, avg, var,local_id%l, local_id/l,CCG_sum[off+local_id].y/total_n - avg*avg, CCG_sum[off+local_id].y);
+	*/
 	float cur = CCG[i].x  / l / l ;
 	CCG[i].x = var>0 ? (cur - avg)/var:cur;
 }
@@ -609,7 +619,8 @@ __global__ void get_peak_pos(cufftComplex *odata,float *res,int l,float d_m)
     int y = local_id / l;
 	
 	sdata[tid] = odata[i].x;
-	if(x<l/5 || x>l-l/5 || y<l/5 || y>l-l/5 ) sdata[tid] = 0;
+	if(x<l/6 || x>l-l/6 || y<l/6 || y>l-l/6 ) sdata[tid] = 0;
+	//if(x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
 	sdata[tid+blockDim.x] = local_id;
 	__syncthreads();
 
