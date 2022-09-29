@@ -367,7 +367,7 @@ void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cufftCompl
     //Binding stream to plan
     CUFFT_CALL(cufftSetStream(*plan_for_image, *stream));
 
-    int n2[rank] = { nx, ny };//n*m
+    int n2[rank] = { ny, nx };//n*m
     inembed = n2;//输入的数组size
     istride = 1;//数组内数据连续，为1
     idist = n2[0] * n2[1];//1个数组的内存大小
@@ -375,6 +375,7 @@ void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cufftCompl
     ostride = 1;//每点DFT后数据连续则为1
     odist = n2[0] * n2[1];//输出第一个数组与第二个数组的距离，即两个数组的首元素的距离
     batch = 1;//批量处理的批数
+    
     //FFT handler for single whole images
     CUFFT_CALL(cufftPlanMany(plan_for_whole_IMG, rank, n2, inembed, istride, idist, onembed, ostride, odist, CUFFT_C2C, batch));//针对多信号同时进行FFT
     //Binding stream to plan
@@ -387,6 +388,7 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
     image->rotate(0);
     //Put Image on GPU
     CUDA_CALL(  cudaMemcpyAsync(d_image, image->getData(), sizeof(float)*nx*ny, cudaMemcpyHostToDevice, *stream)  );
+    
     if(para.phase_flip == 1)
     {
         int block_num = nx*ny/BLOCK_SIZE+1;
