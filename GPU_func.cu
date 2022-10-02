@@ -419,14 +419,18 @@ __global__ void rotate_subIMG(cufftComplex *d_image,cufftComplex *d_rotated_imag
 	float y = j-ny/2, x = i-nx/2;
 	
 	//Res of rotation from (x,y) 
-	float res = 0;
+	float res_x = 0, res_y = 0;
 
 	//(x,y) rotate e with (nx/2,ny/2) (clockwise) 
 	float x2 = (cose*x+sine*y)+nx/2;
 	float y2 = (-sine*x+cose*y)+ny/2;
 
 	//Ouf of boundary after rotation
-	if (x2<0||x2>nx-1.0||y2<0||y2>ny-1.0) res=0;
+	if (x2<0||x2>nx-1.0||y2<0||y2>ny-1.0) 
+	{
+		res_x = 0;
+		res_y = 0;
+	}
 	else
 	{
 		int ii,jj;
@@ -452,12 +456,18 @@ __global__ void rotate_subIMG(cufftComplex *d_image,cufftComplex *d_rotated_imag
 		p1=d_image[off+k1].x*t*uu;
 		p3=d_image[off+k3].x*tt*u;
 		p2=d_image[off+k2].x*t*u;
-		res=p0+p1+p2+p3;
+		res_x=p0+p1+p2+p3;
 
+		p0=d_image[off+k0].y*tt*uu;
+		p1=d_image[off+k1].y*t*uu;
+		p3=d_image[off+k3].y*tt*u;
+		p2=d_image[off+k2].y*t*u;
+		res_y=p0+p1+p2+p3;
 	}
 
 	// res <=> data[i+j*nx] after rotation
-	d_rotated_image[id].x = res;
+	d_rotated_image[id].x = res_x;
+	d_rotated_image[id].y = res_y;
 }
 
 
@@ -505,7 +515,7 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 	// ' means conjugate
 	CCG[i].x = (IMG[j].x*Tl[i].x+IMG[j].y*Tl[i].y);
 	CCG[i].y = (IMG[j].y*Tl[i].x-IMG[j].x*Tl[i].y);
-	//if(i<l2 && local_x == 10 && local_y == 50) printf("(%d %d) %lld-> CCG:(%f,%f) = IMG:(%f,%f)· TL:(%f,%f)\n",local_x,local_y,i,CCG[i].x,CCG[i].y,IMG[j].x,IMG[j].y,Tl[i].x,Tl[i].y);
+	//if(i==644460 && block_id == 0) printf("(%d %d) %lld-> CCG:(%f,%f) = IMG:(%f,%f)· TL:(%f,%f)\n",local_x,local_y,i,CCG[i].x,CCG[i].y,IMG[j].x,IMG[j].y,Tl[i].x,Tl[i].y);
 
 	//Move center to around
 	int of = (l/2)%2,st;
@@ -615,11 +625,11 @@ __global__ void get_peak_pos(cufftComplex *odata,float *res,int l,float d_m)
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
 	int image_size = l*l;
     int local_id = i % image_size;
-    int x = local_id % l;
-    int y = local_id / l;
+    //int x = local_id % l;
+    //int y = local_id / l;
 	
 	sdata[tid] = odata[i].x;
-	if(x<l/6 || x>l-l/6 || y<l/6 || y>l-l/6 ) sdata[tid] = 0;
+	//if(x<l/6 || x>l-l/6 || y<l/6 || y>l-l/6 ) sdata[tid] = 0;
 	//if(x<d_m/4 || x>l-d_m/4 || y<d_m/4 || y>l-d_m/4 ) sdata[tid] = 0;
 	sdata[tid+blockDim.x] = local_id;
 	__syncthreads();
