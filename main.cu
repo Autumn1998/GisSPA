@@ -333,6 +333,8 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
     normalize<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,para->padding_size,para->padding_size,d_means);
     CUDA_CHECK();
 
+    //IFT for temp
+    CUFFT_CALL(  cufftExecC2C(*plan_for_temp, d_templates, d_templates, CUFFT_INVERSE)  );
 }
 
 void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cufftComplex **rotated_splitted_image,cudaStream_t *stream,
@@ -537,7 +539,7 @@ void compute_CCG_sum(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_tem
     }
 }
 
-void preprocess_img_tmp(cufftComplex *img, cufftComplex *tmp, cufftHandle *image_plan, cufftHandle *temp_plan, Parameters para,cudaStream_t *stream)
+void fft_on_img(cufftComplex *img, cufftHandle *image_plan, Parameters para,cudaStream_t *stream)
 {
     int l = para.padding_size;
     long long padded_template_size = l*l;
@@ -548,9 +550,6 @@ void preprocess_img_tmp(cufftComplex *img, cufftComplex *tmp, cufftHandle *image
     //Scale IMG to normel size
     scale<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(img,padded_template_size);
     CUDA_CHECK();
-
-    //IFT for temp
-    CUFFT_CALL(  cufftExecC2C(*temp_plan, tmp, tmp, CUFFT_INVERSE)  );
 }
 
 void pickPartcles(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,float *h_buf,float *d_buf, Parameters para, 
@@ -888,7 +887,7 @@ int main(int argc, char *argv[])
             // h_templates used as a buffer of CCG result
             clear_ccg_sum(CCG_sum,para,&stream);
             // fft on image
-            preprocess_img_tmp(d_rotated_image,d_templates,&plan_for_image,&plan_for_temp,para,&stream);
+            fft_on_img(d_rotated_image,&plan_for_image,para,&stream);
             
             int n_euler = 0;  
             for(float euler3=0.0;euler3<360.0;euler3+=para.phi_step) n_euler ++ ;
