@@ -104,15 +104,30 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
     if(tp!=NULL) delete tp;
 }
 
-void cudaAllocTemplateMem(int N, int nx, int ny, Parameters *para,float **h_reduction_buf,float **d_reduction_buf,float **d_means,double **sigmas,double **d_sigmas,cufftComplex **h_templates,
+void cudaAllocTemplateMem(int N, int nx, int ny,vector<int> &block_off_x, vector<int> & block_off_y, Parameters *para,float **h_reduction_buf,float **d_reduction_buf,float **d_means,double **sigmas,double **d_sigmas,cufftComplex **h_templates,
     cufftComplex **d_templates,cufftComplex **CCG,cufftComplex **CCG_sum,cufftComplex **CCG_buf,cudaStream_t *stream,float **ra, float **rb, cufftHandle *plan_for_temp)
 {
-    int tmp = (para->padding_size - para->overlap);
+    int interval = (para->padding_size - para->overlap);
     //num of blocks in x,y axis
-    int block_x = (nx-para->overlap) / tmp;
-    if((nx-para->overlap) % tmp > 0 ) block_x ++; 
-    int block_y = (ny-para->overlap) / tmp;
-    if((nx-para->overlap) % tmp > 0 ) block_y ++; 
+    int off_x = 0, off_y = 0;
+    int block_x = 1, block_y = 1;
+    block_off_x.push_back(0);
+    block_off_y.push_back(0);
+    while(off_x + para->padding_size < nx) 
+    {
+        off_x += interval;
+        if(off_x + para->padding_size >= nx)  off_x = nx - para->padding_size;
+        block_off_x.push_back(off_x);
+        block_x ++;
+    }
+
+    while(off_y + para->padding_size < ny) 
+    {
+        off_y += interval;
+        if(off_y + para->padding_size >= ny)  off_y = ny - para->padding_size;
+        block_off_y.push_back(off_y);
+        block_y ++;
+    }	
     para->block_x = block_x;
     para->block_y = block_y;
     
@@ -426,7 +441,7 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
 
 }
 
-void split_normalize_image(float *d_image,cufftComplex *d_rotated_image,float *h_buf,float *d_buf,float *d_means, Parameters para, cudaStream_t *stream, int nx, int ny, cufftHandle *image_plan)
+void split_normalize_image(float *d_image,cufftComplex *d_rotated_image,float *h_buf,float *d_buf,float *d_means, Parameters para, cudaStream_t *stream, vector<int> &block_off_x, vector<int> &block_off_y, int nx, int ny, cufftHandle *image_plan)
 {
     int l = para.padding_size;
     // Init d_rotated_imge to all {0}
@@ -435,9 +450,24 @@ void split_normalize_image(float *d_image,cufftComplex *d_rotated_image,float *h
     int blockIMG_num = ix*iy*l*l / BLOCK_SIZE;
     clear_image<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_rotated_image);
     CUDA_CHECK();
+
+    // cpy data to GPU
+    int h_off_x[block_off_x.size()], h_off_y[block_off_y.size()];
+    for(int i = 0; i < block_off_x.size(); i ++) h_off_x[i] = block_off_x[i];
+    for(int i = 0; i < block_off_y.size(); i ++) h_off_y[i] = block_off_y[i];
+    int *d_off_x, *d_off_y;
+    CUDA_CALL(  cudaMalloc(&d_off_x,sizeof(int)*block_off_x.size())  );
+    CUDA_CALL(  cudaMalloc(&d_off_y,sizeof(int)*block_off_y.size())  );
+    CUDA_CALL(  cudaMemcpyAsync(d_off_x, h_off_x,sizeof(int)*block_off_x.size(), cudaMemcpyHostToDevice, *stream)  );
+    CUDA_CALL(  cudaMemcpyAsync(d_off_y, h_off_y,sizeof(int)*block_off_y.size(), cudaMemcpyHostToDevice, *stream)  );
+
     // split Image into blocks with overlap  
-    split_IMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_image,d_rotated_image,nx,ny,para.padding_size,para.block_x,para.overlap);	
+    split_IMG<<<blockIMG_num,BLOCK_SIZE,0,*stream>>>(d_image,d_rotated_image,d_off_x,d_off_y,nx,ny,para.padding_size,para.block_x,para.overlap);	
     CUDA_CHECK();
+
+    // free buf
+    cudaFree(d_off_x);
+    cudaFree(d_off_y);
 
     // do normalize to all subIMGs
     if(para.phase_flip == 1)
@@ -553,7 +583,8 @@ void fft_on_img(cufftComplex *img, cufftHandle *image_plan, Parameters para,cuda
 }
 
 void pickPartcles(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,float *h_buf,float *d_buf, Parameters para, 
-    cufftHandle *template_plan, cudaStream_t *stream,int N,vector<vector<float> > &score_info, int nx, int ny, float euler3, int N_euler)
+    cufftHandle *template_plan, cudaStream_t *stream,int N,vector<vector<float> > &score_info,vector<int> &block_off_x,vector<int> &block_off_y,
+     int nx, int ny, float euler3, int N_euler)
 {           
     int l = para.padding_size;
     long long padded_template_size = l*l;
@@ -587,8 +618,10 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_templa
                 {
                     float score = h_buf[2*k];
                     //if(i==0 && j == 0)printf("J:%d score:%f local:%d,%d\n",J,score,(int)h_buf[2*k+1] % l, (int)h_buf[2*k+1] / l);
-                    int centerx = i*(l-para.overlap) + (int)h_buf[2*k+1] % l;
-                    int centery = j*(l-para.overlap) + (int)h_buf[2*k+1] / l;
+                    //int centerx = (int)h_buf[2*k+1] % l;
+                    //int centery = (int)h_buf[2*k+1] / l;
+                    int centerx = block_off_x[i] + (int)h_buf[2*k+1] % l;
+                    int centery = block_off_y[j] + (int)h_buf[2*k+1] / l;
                     //printf("J:%d  k:%d local_k:%lld i:%d j:%d score:%f  pos:%f\n",J,k,k%(padded_template_size/BLOCK_SIZE),i,j,h_buf[2*k],h_buf[2*k+1]);
                     if(centerx>=0 && centerx<nx &&centery>=0 &&centery<ny)
                     {
@@ -606,7 +639,7 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_templa
 
 
 void pickPartcles_IMG_NORM(cufftComplex *CCG,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,float *h_buf,float *d_buf, Parameters para, 
-    cufftHandle *template_plan, cufftHandle *image_plan,cudaStream_t *stream,int N,vector<vector<float> > &score_info, int nx, int ny, float euler3)
+    cufftHandle *template_plan, cufftHandle *image_plan,cudaStream_t *stream,int N,vector<vector<float> > &score_info, vector<int> &block_off_x,vector<int> &block_off_y,int nx, int ny, float euler3)
 {           
     int l = para.padding_size;
     long long padded_template_size = l*l;
@@ -671,8 +704,8 @@ void pickPartcles_IMG_NORM(cufftComplex *CCG,cufftComplex *d_templates,cufftComp
                 int cy = (int)pos[J]/l;
 
                 //Rotate (cx,cy) to its soriginal angle
-                float centerx =  i*(l-para.overlap) + (cx-l/2)*cos(euler3*PI/180)+(cy-l/2)*sin(euler3*PI/180)+l/2; // centerx
-                float centery =  j*(l-para.overlap) + (cy-l/2)*cos(euler3*PI/180)-(cx-l/2)*sin(euler3*PI/180)+l/2; // centery
+                float centerx =  block_off_x[i] + (cx-l/2)*cos(euler3*PI/180)+(cy-l/2)*sin(euler3*PI/180)+l/2; // centerx
+                float centery =  block_off_y[j] + (cy-l/2)*cos(euler3*PI/180)-(cx-l/2)*sin(euler3*PI/180)+l/2; // centery
 
                 if(score >= para.thres)
                 {                    
@@ -815,6 +848,9 @@ int main(int argc, char *argv[])
     //Store sigma value for all templates
     double *sigmas;
     double *d_sigmas;
+    //Store the offset of each block
+    vector<int > block_off_x;
+    vector<int > block_off_y;
 
     // READ FIRST IMG TO GET nx & ny
     //Image to be searched 
@@ -832,7 +868,7 @@ int main(int argc, char *argv[])
     // granatee 1.padding_size > tmp.nx  2.padding_size > tmp.ny  3.padding_size is 32*K 
     adjustPaddingSize(&para);
 
-    cudaAllocTemplateMem(N_tmp,nx,ny,&para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
+    cudaAllocTemplateMem(N_tmp,nx,ny,block_off_x,block_off_y,&para,&h_reduction_buf,&d_reduction_buf,&d_means,&sigmas,&d_sigmas,
         &h_templates,&d_templates,&CCG,&CCG_sum,&CCG_buf,&stream,&ra,&rb,&plan_for_temp);
     
     //Reading Template
@@ -879,7 +915,7 @@ int main(int argc, char *argv[])
         // 1.Put Image on GPU 2.phaseflip
         init_d_image(para,rotated_splitted_image,d_image,ra,rb,image,nx,ny,&stream,&plan_for_whole_IMG);
         // split Image into blocks with overlap
-        split_normalize_image(d_image,d_rotated_image,h_reduction_buf,d_reduction_buf,d_means,para,&stream,nx,ny,&plan_for_image);
+        split_normalize_image(d_image,d_rotated_image,h_reduction_buf,d_reduction_buf,d_means,para,&stream,block_off_x,block_off_y,nx,ny,&plan_for_image);
 
         // normalize at all angles
         if( para.norm_type == 1)
@@ -927,7 +963,7 @@ int main(int argc, char *argv[])
 
                 //h_templates used as a buffer of CCG result
                 pickPartcles(CCG,CCG_sum,CCG_buf,d_rotated_image,h_reduction_buf,d_reduction_buf,
-                    para,&plan_for_temp,&stream,N_tmp,score_info,nx,ny,euler3,n_euler);
+                    para,&plan_for_temp,&stream,N_tmp,score_info,block_off_x,block_off_y,nx,ny,euler3,n_euler);
                 cudaStreamSynchronize(stream);
                 
                 writeScoreToDisk(score_info,para,euler,fp,nn,t,360.0f-euler3);
@@ -952,7 +988,8 @@ int main(int argc, char *argv[])
                 //4. Output score
                 //***************************************************
     
-                pickPartcles_IMG_NORM(CCG,d_templates,rotated_splitted_image,h_reduction_buf,d_reduction_buf,para,&plan_for_temp,&plan_for_image,&stream,N_tmp,score_info,nx,ny,euler3);
+                pickPartcles_IMG_NORM(CCG,d_templates,rotated_splitted_image,h_reduction_buf,d_reduction_buf,para,&plan_for_temp,&plan_for_image,
+                    &stream,N_tmp,score_info,block_off_x,block_off_y,nx,ny,euler3);
                 cudaStreamSynchronize(stream);
                 
                 writeScoreToDisk(score_info,para,euler,fp,nn,t,euler3);

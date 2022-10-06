@@ -472,7 +472,7 @@ __global__ void rotate_subIMG(cufftComplex *d_image,cufftComplex *d_rotated_imag
 
 
 
-__global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int bx,int overlap)
+__global__ void split_IMG(float *Ori,cufftComplex *IMG,int *block_off_x, int *block_off_y, int nx,int ny,int l,int bx,int overlap)
 {
     long long  i = blockIdx.x*blockDim.x + threadIdx.x;
 	int image_size = l*l;
@@ -481,12 +481,10 @@ __global__ void split_IMG(float *Ori,cufftComplex *IMG, int nx,int ny,int l,int 
     int x = local_id % l;
     int y = local_id / l;
 
-	int tmp = l - overlap;
-
 	int area_x_id = image_id%bx;
 	int area_y_id = image_id/bx;
-	int ori_x = area_x_id*tmp + x;
-	int ori_y = area_y_id*tmp + y;
+	int ori_x = block_off_x[area_x_id] + x;
+	int ori_y = block_off_x[area_y_id] + y;
 
 	if(ori_x>=nx || ori_y>=ny) return;
 	IMG[i].x = Ori[ori_x + ori_y*nx];
