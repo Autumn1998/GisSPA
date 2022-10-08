@@ -349,7 +349,9 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
     CUDA_CHECK();
 
     //IFT for temp
-    CUFFT_CALL(  cufftExecC2C(*plan_for_temp, d_templates, d_templates, CUFFT_INVERSE)  );
+    if(para->norm_type == 1) CUFFT_CALL(  cufftExecC2C(*plan_for_temp, d_templates, d_templates, CUFFT_INVERSE)  );
+    
+    
 }
 
 void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cufftComplex **rotated_splitted_image,cudaStream_t *stream,

@@ -484,7 +484,7 @@ __global__ void split_IMG(float *Ori,cufftComplex *IMG,int *block_off_x, int *bl
 	int area_x_id = image_id%bx;
 	int area_y_id = image_id/bx;
 	int ori_x = block_off_x[area_x_id] + x;
-	int ori_y = block_off_x[area_y_id] + y;
+	int ori_y = block_off_y[area_y_id] + y;
 
 	if(ori_x>=nx || ori_y>=ny) return;
 	IMG[i].x = Ori[ori_x + ori_y*nx];
