@@ -625,7 +625,7 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_templa
                     int centerx = block_off_x[i] + (int)h_buf[2*k+1] % l;
                     int centery = block_off_y[j] + (int)h_buf[2*k+1] / l;
                     //printf("J:%d  k:%d local_k:%lld i:%d j:%d score:%f  pos:%f\n",J,k,k%(padded_template_size/BLOCK_SIZE),i,j,h_buf[2*k],h_buf[2*k+1]);
-                    if(centerx>=0 && centerx<nx &&centery>=0 &&centery<ny)
+                    if(centerx>=para.d_m && centerx<nx-para.d_m &&centery>=para.d_m &&centery<ny-para.d_m)
                     {
                         score_info[0].push_back(score);
                         score_info[1].push_back(centerx);
@@ -711,7 +711,7 @@ void pickPartcles_IMG_NORM(cufftComplex *CCG,cufftComplex *d_templates,cufftComp
 
                 if(score >= para.thres)
                 {                    
-                    if(centerx>=0 && centerx<nx &&centery>=0 &&centery<ny)
+                    if(centerx>=para.d_m && centerx<nx-para.d_m &&centery>=para.d_m &&centery<ny-para.d_m)
                     {
                         score_info[0].push_back(score);
                         score_info[1].push_back(centerx);
