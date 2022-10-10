@@ -227,6 +227,16 @@ void parse(string line, Parameters *p)
 		p->norm_type=atoi(value);
 		return;
 	}
+	if(option.compare("replace_outlier")==0){
+		i++;
+		p->replace_outlier=atoi(value);
+		return;
+	}
+	if(option.compare("maximun_n_sigma")==0){
+		i++;
+		p->maximun_n_sigma=atoi(value);
+		return;
+	}
 	printf("Undefined option: %s .Abort.\n",value);
 }
 

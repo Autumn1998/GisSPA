@@ -7,9 +7,80 @@
 #include <malloc.h>
 #include <cmath>
 #include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <iostream>
 #include <sys/stat.h>
 
 using namespace std;
+
+//for debug
+void out_mean_var_matrix(Parameters para,cufftComplex* ccg_sum, cudaStream_t *stream)
+{
+    int l = para.padding_size;   
+    int data_size = l*l*para.block_x*para.block_y;
+    cufftComplex h_ccg_sum[data_size];
+
+    CUDA_CALL( cudaMemcpyAsync(h_ccg_sum, ccg_sum, sizeof(cufftComplex)*data_size, cudaMemcpyDeviceToHost, *stream) );
+    CUDA_CALL( cudaStreamSynchronize(*stream) );
+
+    for(int i=0;i<para.block_x;i++)
+    {
+        for(int j=0;j<para.block_y;j++)
+        {
+            int k = i*para.block_y + j;
+            string path = "debug/debug_mean_var/";
+            string mean_path = path + "mean" + to_string(k) + ".txt";
+            string var_path = path + "var" + to_string(k) + ".txt";
+
+            ofstream meanFile;	
+            meanFile.open(mean_path);
+            ofstream varFile;	
+            varFile.open(var_path);		
+            for(int x = 0;x<l;x++)
+            {
+                for(int y=0;y<l;y++) 
+                {
+                    meanFile <<setprecision( 10 )<< h_ccg_sum[l*l*k + x*l+y].x <<" ";
+                    varFile <<setprecision( 10 )<< h_ccg_sum[l*l*k + x*l+y].y <<" ";
+                }
+                meanFile<<endl;
+                varFile<<endl;
+            }            
+            meanFile.close();	          
+            varFile.close();	
+        }
+    }
+   
+}
+
+//for debug
+void write_ccg(Parameters para,cufftComplex* d_ccg, int N, float e, cudaStream_t *stream)
+{
+    int l = para.padding_size;   
+    int data_size = N*l*l;
+    cufftComplex *h_ccg;
+    h_ccg = (cufftComplex *)malloc(sizeof(cufftComplex)*data_size);
+
+    CUDA_CALL( cudaMemcpyAsync(h_ccg, d_ccg, sizeof(cufftComplex)*data_size, cudaMemcpyDeviceToHost, *stream) );
+    CUDA_CALL( cudaStreamSynchronize(*stream) );
+    for(int i=0;i<N;i++)
+    {
+        string path = "debug/ccg_all_angle/ccg_"+ to_string(e) + "_" + to_string(i) + ".txt";
+        ofstream outFile;	
+        outFile.open(path);	
+        for(int x = 0;x<l;x++)
+        {
+            for(int y=0;y<l;y++) 
+            {
+                outFile <<setprecision( 10 )<< h_ccg[l*l*i + x*l + y].x/(l*l) <<" ";
+            }
+            outFile<<endl;
+        }                      
+        outFile.close();	
+    }
+    free(h_ccg);
+}
 
 //for debug
 //check GPU mem leaking
@@ -145,7 +216,7 @@ void cudaAllocTemplateMem(int N, int nx, int ny,vector<int> &block_off_x, vector
     //Memory alloc for CCG
     CUDA_CALL(  cudaMalloc(CCG,sizeof(cufftComplex)*padded_template_size*N)  );
     //Memory of n&n2
-    CUDA_CALL(  cudaMalloc(CCG_sum,sizeof(cufftComplex)*padded_template_size*N)  );
+    CUDA_CALL(  cudaMalloc(CCG_sum,sizeof(cufftComplex)*padded_template_size*block_x*block_y)  );
     CUDA_CALL(  cudaMalloc(CCG_buf,sizeof(cufftComplex)*padded_template_size*N)  );
 
     //Store sigma value for all templates
@@ -303,6 +374,7 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
     whiten_Tmp<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,ra,rb,para->padding_size);
     CUDA_CHECK();
 
+    /*
 // **************************************************************
 // apply mask 
 // input: whiten_IMAGE (Fourier SPACE in RI)
@@ -315,6 +387,7 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
     // CUFFT will enlarge VALUE to N times. Restore it
     scale<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,padded_template_size);
     CUDA_CHECK();
+    */
 
 // **************************************************************
 // 1. lowpass
@@ -405,9 +478,30 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
 {
     //Translate origin of Image to (0,0)
     image->rotate(0);
+
+    if(para.replace_outlier == 1 )
+    {
+        float *h_img = image->getData();
+        float sum = 0, sum_s2 = 0;
+        for(int i=0;i<nx * ny;i++)
+        {
+            float cur = h_img[i];
+            sum += cur /nx / ny;
+            sum_s2 += (cur*cur /nx/ny);
+        }
+        float avg = sum ;
+        float var = sqrt(sum_s2 - avg*avg);
+
+        int up_bound = avg + para.maximun_n_sigma*var;
+        int low_bound = avg - para.maximun_n_sigma*var;
+        if(sum_s2 > avg*avg)
+            for(int i=0;i<nx*ny;i++)
+                if(h_img[i] > up_bound || h_img[i] < low_bound) h_img[i] = avg;
+    }
+
     //Put Image on GPU
     CUDA_CALL(  cudaMemcpyAsync(d_image, image->getData(), sizeof(float)*nx*ny, cudaMemcpyHostToDevice, *stream)  );
-    
+
     if(para.phase_flip == 1)
     {
         int block_num = nx*ny/BLOCK_SIZE+1;
@@ -564,11 +658,21 @@ void compute_CCG_sum(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_tem
             CUDA_CHECK();
             //Inplace IFT
             CUFFT_CALL(  cufftExecC2C(*template_plan, CCG, CCG, CUFFT_INVERSE)  );
+            //debug
+            //if(i ==0 && j == 0) write_ccg(para,CCG,N,euler3,stream);
             //compute avg/vairance
             add_CCG_to_sum<<<l*l/BLOCK_SIZE,BLOCK_SIZE,0,*stream >>>(CCG_sum,CCG,l,N,i+j*para.block_x);
             CUDA_CHECK();
         }
     }
+}
+
+void compute_CCG_mean(cufftComplex *CCG_sum, Parameters para,int N_tmp, int N_euler, cudaStream_t *stream)
+{
+    int l = para.padding_size;
+    long long padded_template_size = l*l;
+    int blockIMG_num = padded_template_size*para.block_x*para.block_y/BLOCK_SIZE;
+    set_CCG_mean<<<blockIMG_num,BLOCK_SIZE>>>(CCG_sum,para.padding_size,N_tmp,N_euler);
 }
 
 void fft_on_img(cufftComplex *img, cufftHandle *image_plan, Parameters para,cudaStream_t *stream)
@@ -586,7 +690,7 @@ void fft_on_img(cufftComplex *img, cufftHandle *image_plan, Parameters para,cuda
 
 void pickPartcles(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_templates,cufftComplex *rotated_splitted_image,float *h_buf,float *d_buf, Parameters para, 
     cufftHandle *template_plan, cudaStream_t *stream,int N,vector<vector<float> > &score_info,vector<int> &block_off_x,vector<int> &block_off_y,
-     int nx, int ny, float euler3, int N_euler)
+     int nx, int ny, float euler3)
 {           
     int l = para.padding_size;
     long long padded_template_size = l*l;
@@ -603,7 +707,7 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_templa
             //Inplace IFT
             CUFFT_CALL(  cufftExecC2C(*template_plan, CCG, CCG, CUFFT_INVERSE)  );
             //update CCG with avg/vairance
-            update_CCG<<<blockGPU_num,BLOCK_SIZE,0,*stream >>>(CCG_sum,CCG,l,N,N_euler,i+j*para.block_x);
+            update_CCG<<<blockGPU_num,BLOCK_SIZE,0,*stream >>>(CCG_sum,CCG,l,i+j*para.block_x);
             CUDA_CHECK();
 
             // find peak in each block
@@ -619,9 +723,6 @@ void pickPartcles(cufftComplex *CCG,cufftComplex *CCG_sum,cufftComplex *d_templa
                 if(h_buf[2*k] >= para.thres )
                 {
                     float score = h_buf[2*k];
-                    //if(i==0 && j == 0)printf("J:%d score:%f local:%d,%d\n",J,score,(int)h_buf[2*k+1] % l, (int)h_buf[2*k+1] / l);
-                    //int centerx = (int)h_buf[2*k+1] % l;
-                    //int centery = (int)h_buf[2*k+1] / l;
                     int centerx = block_off_x[i] + (int)h_buf[2*k+1] % l;
                     int centery = block_off_y[j] + (int)h_buf[2*k+1] / l;
                     //printf("J:%d  k:%d local_k:%lld i:%d j:%d score:%f  pos:%f\n",J,k,k%(padded_template_size/BLOCK_SIZE),i,j,h_buf[2*k],h_buf[2*k+1]);
@@ -776,7 +877,6 @@ inline bool create_outpath(char * path)
     return true;
 }
 
-
 int main(int argc, char *argv[])
 {
     //Timer
@@ -914,8 +1014,8 @@ int main(int argc, char *argv[])
         readRawImage(image,&para,n,&nn,t);
         if(firstOrNot) cudaAllocImageMem(&d_image,&d_rotated_image,&rotated_splitted_image,&stream,&plan_for_image,&plan_for_whole_IMG,nx,ny,N_tmp,&para);
         firstOrNot = false;
-        // 1.Put Image on GPU 2.phaseflip
-        init_d_image(para,rotated_splitted_image,d_image,ra,rb,image,nx,ny,&stream,&plan_for_whole_IMG);
+        // 1.Put Image on GPU 2.phaseflip 3.Replace Outliers With mean
+        init_d_image(para,rotated_splitted_image,d_image,ra,rb,image,nx,ny,&stream,&plan_for_whole_IMG); 
         // split Image into blocks with overlap
         split_normalize_image(d_image,d_rotated_image,h_reduction_buf,d_reduction_buf,d_means,para,&stream,block_off_x,block_off_y,nx,ny,&plan_for_image);
 
@@ -944,6 +1044,10 @@ int main(int argc, char *argv[])
 
                 compute_CCG_sum(CCG,CCG_sum,CCG_buf,d_rotated_image,para,&plan_for_temp,&stream,N_tmp,euler3,n_euler);
             }
+            
+            compute_CCG_mean(CCG_sum,para, N_tmp,n_euler, &stream);
+            // debug
+            // out_mean_var_matrix(para,CCG_sum,&stream);break;
 
             printf("\nUpdate CCGs and compute scores\n");
             // compute CCG & (CCG-avg)/sqrt(s2)
@@ -965,10 +1069,12 @@ int main(int argc, char *argv[])
 
                 //h_templates used as a buffer of CCG result
                 pickPartcles(CCG,CCG_sum,CCG_buf,d_rotated_image,h_reduction_buf,d_reduction_buf,
-                    para,&plan_for_temp,&stream,N_tmp,score_info,block_off_x,block_off_y,nx,ny,euler3,n_euler);
+                    para,&plan_for_temp,&stream,N_tmp,score_info,block_off_x,block_off_y,nx,ny,euler3);
                 cudaStreamSynchronize(stream);
-                
-                writeScoreToDisk(score_info,para,euler,fp,nn,t,360.0f-euler3);
+
+                float cur_e =  360.0f-euler3;
+                if(cur_e >= 360) cur_e -= 360;
+                writeScoreToDisk(score_info,para,euler,fp,nn,t,cur_e);
             }
 
         }else if(para.norm_type == 0)

@@ -513,7 +513,7 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 	// ' means conjugate
 	CCG[i].x = (IMG[j].x*Tl[i].x+IMG[j].y*Tl[i].y);
 	CCG[i].y = (IMG[j].y*Tl[i].x-IMG[j].x*Tl[i].y);
-	//if(i==644460 && block_id == 0) printf("(%d %d) %lld-> CCG:(%f,%f) = IMG:(%f,%f)· TL:(%f,%f)\n",local_x,local_y,i,CCG[i].x,CCG[i].y,IMG[j].x,IMG[j].y,Tl[i].x,Tl[i].y);
+	//if(i==644460 && block_id == 2) printf("(%d %d) %lld-> CCG:(%f,%f) = IMG:(%f,%f)· TL:(%f,%f)\n",local_x,local_y,i,CCG[i].x,CCG[i].y,IMG[j].x,IMG[j].y,Tl[i].x,Tl[i].y);
 
 	//Move center to around
 	int of = (l/2)%2,st;
@@ -543,27 +543,31 @@ __global__ void add_CCG_to_sum(cufftComplex *CCG_sum, cufftComplex *CCG, int l, 
 
 }
 
+__global__ void set_CCG_mean(cufftComplex *CCG_sum, int l, int N_tmp, int N_euler)
+{
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	float total_n = N_tmp*N_euler;
+
+	float avg = CCG_sum[i].x/total_n;
+	float var = sqrtf(CCG_sum[i].y/total_n - avg*avg);
+
+	CCG_sum[i].x = avg;
+	CCG_sum[i].y = var;
+
+}
+
 // update CCG val use avgeage & variance
-__global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int N_tmp, int N_euler, int block_id)
+__global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int block_id)
 {
 	//On this function,block means subimage splitted from IMG, not block ON GPU
 	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
 	//Local id corresponding to splitted IMG 
 	int local_id = i%(l*l);
-	float total_n = N_tmp*N_euler;
 	int off = block_id * l*l;
 
-	float avg = CCG_sum[off+local_id].x/total_n;
-	float var = sqrtf(CCG_sum[off+local_id].y/total_n - avg*avg);
+	float avg = CCG_sum[off+local_id].x;
+	float var = CCG_sum[off+local_id].y;
 
-	/*
-	int bidx = l/6;
-	int bidy = l/6;
-	int tmpx = local_id % l;
-	int tmpy = local_id / l;
-	if(i == local_id && tmpx >bidx && tmpx <bidx+5 &&  tmpy>bidy && tmpy < bidy+5 && block_id == 0)
-	printf(">>>>>>>>>>>CCG[%lld] = %f  l:%d avg:%f  var:%f loadl_id:%d %d  s2:%f  x2:%f \n",i,CCG[i].x, l, avg, var,local_id%l, local_id/l,CCG_sum[off+local_id].y/total_n - avg*avg, CCG_sum[off+local_id].y);
-	*/
 	float cur = CCG[i].x  / l / l ;
 	CCG[i].x = var>0 ? (cur - avg)/var:cur;
 }

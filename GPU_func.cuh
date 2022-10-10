@@ -56,7 +56,8 @@ __global__ void rotate_subIMG(cufftComplex *d_image,cufftComplex *d_rotated_imag
 __global__ void split_IMG(float *Ori,cufftComplex *IMG, int *block_off_x, int *block_off_y, int nx,int ny,int l,int bx,int overlap);
 __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftComplex *IMG, int l, int block_id);
 __global__ void add_CCG_to_sum(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int N_tmp, int block_id);
-__global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int N_tmp, int N_euler, int block_id);
+__global__ void set_CCG_mean(cufftComplex *CCG_sum, int l, int N_tmp, int N_euler);
+__global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int block_id);
 __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m);
 __global__ void get_peak_pos(cufftComplex *odata,float *res,int l,float d_m);
 __global__ void scale(cufftComplex *data,int l2);
@@ -67,7 +68,6 @@ __global__ void clear_float(float *data);
 __global__ void Complex2float(float *f, cufftComplex *c, int nx, int ny);
 __global__ void float2Complex(cufftComplex *c, float *f, int nx, int ny);
 __global__ void do_phase_flip(cufftComplex *filter, Parameters para, int nx, int ny);
-
 __device__ float CTF_AST(int x1, int y1, int nx, int ny, float apix, float dfu, float dfv, float dfdiff, float dfang ,float lambda, float cs, float ampconst, int mode);
 
 void cudaMemoryTest();
