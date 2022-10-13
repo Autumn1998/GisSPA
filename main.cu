@@ -19,8 +19,7 @@ void out_mean_var_matrix(Parameters para,cufftComplex* ccg_sum, cudaStream_t *st
 {
     int l = para.padding_size;   
     int data_size = l*l*para.block_x*para.block_y;
-    cufftComplex h_ccg_sum[data_size];
-
+    cufftComplex *h_ccg_sum = (cufftComplex *)malloc(sizeof(cufftComplex)*data_size);
     CUDA_CALL( cudaMemcpyAsync(h_ccg_sum, ccg_sum, sizeof(cufftComplex)*data_size, cudaMemcpyDeviceToHost, *stream) );
     CUDA_CALL( cudaStreamSynchronize(*stream) );
 
@@ -29,6 +28,7 @@ void out_mean_var_matrix(Parameters para,cufftComplex* ccg_sum, cudaStream_t *st
         for(int j=0;j<para.block_y;j++)
         {
             int k = i*para.block_y + j;
+            if(k > 1) break; 
             string path = "debug/debug_mean_var/";
             string mean_path = path + "mean" + to_string(k) + ".txt";
             string var_path = path + "var" + to_string(k) + ".txt";
@@ -41,8 +41,8 @@ void out_mean_var_matrix(Parameters para,cufftComplex* ccg_sum, cudaStream_t *st
             {
                 for(int y=0;y<l;y++) 
                 {
-                    meanFile <<setprecision( 10 )<< h_ccg_sum[l*l*k + x*l+y].x <<" ";
-                    varFile <<setprecision( 10 )<< h_ccg_sum[l*l*k + x*l+y].y <<" ";
+                    meanFile <<setprecision( 10 )<< h_ccg_sum[l*l*k + x*l+y].x/l/l <<" ";
+                    varFile <<setprecision( 10 )<< h_ccg_sum[l*l*k + x*l+y].y/l/l <<" ";
                 }
                 meanFile<<endl;
                 varFile<<endl;
@@ -51,7 +51,7 @@ void out_mean_var_matrix(Parameters para,cufftComplex* ccg_sum, cudaStream_t *st
             varFile.close();	
         }
     }
-   
+    free(h_ccg_sum);
 }
 
 //for debug
@@ -81,6 +81,34 @@ void write_ccg(Parameters para,cufftComplex* d_ccg, int N, float e, cudaStream_t
     }
     free(h_ccg);
 }
+
+//for debug
+void write_temp(Parameters para,cufftComplex* d_ccg, int N, float e, cudaStream_t *stream)
+{
+    int l = para.padding_size;   
+    int data_size = N*l*l;
+    cufftComplex *h_buf;
+    h_buf = (cufftComplex *)malloc(sizeof(cufftComplex)*data_size);
+    CUDA_CALL( cudaMemcpyAsync(h_buf, d_ccg, sizeof(cufftComplex)*data_size, cudaMemcpyDeviceToHost, *stream) );
+    CUDA_CALL( cudaStreamSynchronize(*stream) );
+    for(int i=0;i<1;i++)
+    {
+        string path = "debug/template_rotate/temp_"+ to_string(e) + "_" + to_string(i) + ".txt";
+        ofstream outFile;	
+        outFile.open(path);	
+        for(int x = 0;x<l;x++)
+        {
+            for(int y=0;y<l;y++) 
+            {
+                outFile <<setprecision( 10 )<< h_buf[l*l*i + x*l + y].x <<" ";
+            }
+            outFile<<endl;
+        }                      
+        outFile.close();	
+    }
+    free(h_buf);
+}
+
 
 //for debug
 //check GPU mem leaking
@@ -627,6 +655,9 @@ void rotateTemplate(cufftHandle *plan_for_temp, cufftComplex *d_templates,cufftC
     // rotate subIMG with angle "e"
     rotate_subIMG<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(d_templates,rotated_templates,e,l);
     CUDA_CHECK();
+
+    //debug
+    // write_temp(para,rotated_templates,N,e,stream);
 
     //Inplace FFT
     CUFFT_CALL(  cufftExecC2C(*plan_for_temp, rotated_templates, rotated_templates, CUFFT_FORWARD)  );
