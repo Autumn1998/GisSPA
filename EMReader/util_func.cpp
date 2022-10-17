@@ -96,6 +96,9 @@ void printHelpMsg()
 	printf("Lowres           = low resolution cut\n");
 	printf("diameter         = target diameter in pixel\n");
 	printf("Optional Parameters:\n");
+        printf("norm_type        = CCG norm type, 0/ 1/ 2\n");
+        printf("replace_hot        = 0, skip; 1, replace\n");
+        printf("maximum_n_sigma        = values larger than mean by n sigmas will be replaced\n");
 	printf("threshold        = cc threshold value, only output score beyond this value\n");
 	printf("output           = output lstfile filaname\n");
 	printf("first            = the first image id to process.\n");

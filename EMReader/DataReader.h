@@ -39,8 +39,8 @@ struct Parameters
 	int device_id = 0;
 	//will be d_m after inputting of d_M if user do not make it fixed
 	int overlap = -1;
-	int replace_outlier = 0; 
-	int maximun_n_sigma = 2;
+	int replace_hot = 0; 
+	int maximum_n_sigma = 2;
 
 	void printAllPara()
 	{
@@ -67,8 +67,8 @@ struct Parameters
 		printf("--phase_flip       %d\n",phase_flip);
 		printf("--overlap          %d\n",overlap);
 		printf("--norm_type        %d\n",norm_type);
-		printf("--replace outlier  %d\n",replace_outlier);
-		printf("--max_n_sigma      %d\n",maximun_n_sigma);
+		printf("--replace_hot      %d\n",replace_hot);
+		printf("--max_n_sigma      %d\n",maximum_n_sigma);
 
 		printf("Parameter fixed:\n");
 		printf("--a                %f\n",a);

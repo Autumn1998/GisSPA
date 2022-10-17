@@ -569,7 +569,7 @@ __global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int 
 	float var = CCG_sum[off+local_id].y;
 
 	float cur = CCG[i].x  / l / l ;
-	CCG[i].x = var>0 ? (cur - avg)/var:cur;
+	CCG[i].x = var>0 ? (cur-avg)/var:0;
 }
 
 
