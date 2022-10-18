@@ -530,15 +530,16 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
     //Put Image on GPU
     CUDA_CALL(  cudaMemcpyAsync(d_image, image->getData(), sizeof(float)*nx*ny, cudaMemcpyHostToDevice, *stream)  );
 
+    
+    int block_num = nx*ny/BLOCK_SIZE+1;
+    float2Complex<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,d_image,nx,ny);
+    //fft inplace
+    CUFFT_CALL(cufftExecC2C(*plan_for_whole_IMG, filter, filter, CUFFT_FORWARD));
+    scale<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,nx*ny);
+    CUDA_CHECK();
+
     if(para.phase_flip == 1)
     {
-        int block_num = nx*ny/BLOCK_SIZE+1;
-        float2Complex<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,d_image,nx,ny);
-        //fft inplace
-        CUFFT_CALL(cufftExecC2C(*plan_for_whole_IMG, filter, filter, CUFFT_FORWARD));
-        scale<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,nx*ny);
-        CUDA_CHECK();
-
         //phase flip
         do_phase_flip<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,para,nx,ny);
         CUDA_CHECK();
@@ -556,12 +557,15 @@ void init_d_image(Parameters para,cufftComplex *filter,float *d_image, float*ra,
         // 4. ap2ri
         whiten_filetr_weight_Img<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,ra,rb,nx,ny,para);
         CUDA_CHECK();
-
-        //ifft inplace
-        CUFFT_CALL(cufftExecC2C(*plan_for_whole_IMG, filter, filter, CUFFT_INVERSE));
-        Complex2float<<<block_num,BLOCK_SIZE,0,*stream>>>(d_image,filter,nx,ny);
-
     }
+    
+    // 0Hz -> 0
+    set_0Hz_to_0_at_RI<<<block_num,BLOCK_SIZE,0,*stream>>>(filter,nx,ny);
+    CUDA_CHECK();
+
+    //ifft inplace
+    CUFFT_CALL(cufftExecC2C(*plan_for_whole_IMG, filter, filter, CUFFT_INVERSE));
+    Complex2float<<<block_num,BLOCK_SIZE,0,*stream>>>(d_image,filter,nx,ny);
 
 }
 

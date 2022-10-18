@@ -47,6 +47,7 @@ __global__ void scale_each(int l,cufftComplex *d_templates,float *ems,double *d_
 __global__ void SQRSum_by_circle(cufftComplex *data, float *ra, float *rb, int nx, int ny, int mode=0);
 __global__ void whiten_Tmp(cufftComplex *data, float *ra, float *rb, int l);
 __global__ void whiten_filetr_weight_Img(cufftComplex *data, float *ra, float *rb, int nx, int ny, Parameters para);
+__global__ void set_0Hz_to_0_at_RI(cufftComplex *data, int nx, int ny);
 __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,int l);
 __global__ void apply_weighting_function(cufftComplex *data,Parameters para);
 __global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int nx, int ny);

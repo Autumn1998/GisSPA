@@ -168,7 +168,7 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 	float ss = sqrtf( ( dx*dx/(float)(nx*nx) + dy*dy/(float)(ny*ny) )/ (para.apix*para.apix) );
 	int l = max(nx,ny);
 	float v,signal,Ncurve;
-
+	
     //whiten
 	if( r < l/2 && r >= 0){
 		v=CTF_AST(x,(y+ny/2)%ny,nx,ny,para.apix,para.dfu,para.dfv,para.dfdiff,para.dfang,para.lambda,para.cs,para.ampconst,2);
@@ -178,7 +178,7 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 		data[i].x=data[i].x*sqrt((signal*v*v+Ncurve)/signal)/sqrt(ra[r]/rb[r]);
 		if(r>(l*para.apix/6)) data[i].x=data[i].x*exp(-100*ss*ss);
 	}
-
+	
 	// low pass
 	if (r<l*para.apix/para.highres && r >= l*para.apix/para.lowres) {}
 	else if(r>=l*para.apix/para.highres && r<l*para.apix/para.highres+8){
@@ -189,7 +189,7 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 	}
 	else
 		data[i].x=0;
-
+		
     //apply weighting function
 	if( r < l/2 && r >= 0){
 		signal/=(para.kk+1);
@@ -201,7 +201,29 @@ __global__  void  whiten_filetr_weight_Img(cufftComplex *data, float *ra, float 
 	float tmp=data[i].x*sinf(data[i].y);
 	data[i].x=data[i].x*cosf(data[i].y);
 	data[i].y=tmp;
+	
+}
 
+__global__ void set_0Hz_to_0_at_RI(cufftComplex *data, int nx, int ny)
+{
+	// i <==> global ID
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	if(i>=1) return;
+
+	// ri2ap
+	float tmp=hypotf(data[i].x, data[i].y);
+	if (data[i].x==0 && data[i].y==0) 
+		data[i].y=0;
+	else data[i].y=atan2(data[i].y,data[i].x);
+	data[i].x=tmp;
+
+	if(i == 0) data[i].x = 0;
+
+	//ap2ri
+	tmp=data[i].x*sinf(data[i].y);
+	data[i].x=data[i].x*cosf(data[i].y);
+	data[i].y=tmp;
+	
 }
 
 __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,int l)
