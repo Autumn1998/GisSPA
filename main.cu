@@ -402,21 +402,6 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
     whiten_Tmp<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,ra,rb,para->padding_size);
     CUDA_CHECK();
 
-    /*
-// **************************************************************
-// apply mask 
-// input: whiten_IMAGE (Fourier SPACE in RI)
-// output: masked_whiten_IMAGE (Fourier SPACE in RI)
-// **************************************************************
-//    CUFFT_CALL(  cufftExecC2C(*plan_for_temp, d_templates, d_templates, CUFFT_INVERSE)  );
- //   apply_mask<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,para->d_m,para->edge_half_width,para->padding_size);
- //   CUDA_CHECK();
- //   CUFFT_CALL(  cufftExecC2C(*plan_for_temp, d_templates, d_templates, CUFFT_FORWARD)  );
-    // CUFFT will enlarge VALUE to N times. Restore it
- //   scale<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,padded_template_size);
- //   CUDA_CHECK();
-    */
-
 // **************************************************************
 // 1. lowpass
 // 2. apply weighting function
@@ -449,10 +434,33 @@ void handleTemplate(int N, float *ra, float *rb,float *h_buf,float *d_buf,float 
     normalize<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,para->padding_size,para->padding_size,d_means);
     CUDA_CHECK();
 
-    //IFT for temp
+    // **************************************************************
+    // apply mask 
+    // input: normed_IMAGE (Fourier SPACE in RI)
+    // **************************************************************
     CUFFT_CALL(  cufftExecC2C(*plan_for_temp, d_templates, d_templates, CUFFT_INVERSE)  );
-    
-    
+    apply_mask<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,para->d_m,para->edge_half_width,para->padding_size);
+    CUDA_CHECK();
+
+    /*
+        ap2ri<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates);
+        //IFT for temp
+        CUFFT_CALL(  cufftExecC2C(*plan_for_temp, d_templates, d_templates, CUFFT_INVERSE)  );
+
+        cufftComplex * norm_buf;
+        CUDA_CALL(  cudaMalloc(&norm_buf,para->padding_size*para->padding_size*sizeof(cufftComplex))  );
+        int norm_block_num = para->padding_size*para->padding_size /BLOCK_SIZE;
+        add_Temp_to_sum<<<norm_block_num,BLOCK_SIZE,0,*stream>>>(norm_buf,d_templates,para->padding_size,N);
+        CUDA_CHECK();
+        set_Temp_mean<<<norm_block_num,BLOCK_SIZE,0,*stream>>>(norm_buf,para->padding_size,N);
+        CUDA_CHECK();
+        update_temp<<<block_num,BLOCK_SIZE,0,*stream>>>(norm_buf,d_templates,para->padding_size);
+        CUDA_CHECK();
+        cudaFree(norm_buf);
+
+        apply_mask<<<block_num,BLOCK_SIZE,0,*stream>>>(d_templates,para->d_m,para->edge_half_width,para->padding_size);
+        CUDA_CHECK();
+    */
 }
 
 void cudaAllocImageMem(float **d_image,cufftComplex **d_rotated_image,cufftComplex **rotated_splitted_image,cudaStream_t *stream,

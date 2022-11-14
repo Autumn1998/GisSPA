@@ -594,6 +594,49 @@ __global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int 
 	CCG[i].x = var>0 ? (cur-avg)/var:0;
 }
 
+// compute the avg of CCG in all templates
+__global__ void add_Temp_to_sum(cufftComplex *Temp_sum, cufftComplex *tmp, int l, int N_tmp)
+{
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	//Area of rectangle, l^2
+	int interval = l*l;
+
+	// compute average & vairance
+	for(int n=0;n<N_tmp;n++) 
+	{
+		float cur = tmp[ n*interval + i ].x;
+		Temp_sum[i].x += cur;
+		Temp_sum[i].y += (cur*cur);
+	}
+}
+
+__global__ void set_Temp_mean(cufftComplex *Temp_sum, int l, int N_tmp)
+{
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+
+	float avg = Temp_sum[i].x/N_tmp;
+	float var = sqrtf(Temp_sum[i].y/N_tmp - avg*avg);
+	
+	Temp_sum[i].x = avg;
+	Temp_sum[i].y = var;
+
+}
+
+// update CCG val use avgeage & variance
+__global__ void update_temp(cufftComplex *Temp_sum, cufftComplex *tmp, int l)
+{
+	//On this function,block means subimage splitted from IMG, not block ON GPU
+	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+	//Local id corresponding to splitted IMG 
+	int local_id = i%(l*l);
+
+	float avg = Temp_sum[local_id].x;
+	float var = Temp_sum[local_id].y;
+	
+	float cur = tmp[i].x;
+	tmp[i].x = var>0 ? (cur-avg)/var:0;
+}
+
 
 //"MAX" reduction for *odata : return max{odata[i]},i
 //"SUM" reduction for *odata : return sum{odata[i]},sum{odata[i]^2}

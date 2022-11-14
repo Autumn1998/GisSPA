@@ -59,6 +59,9 @@ __global__ void compute_corner_CCG(cufftComplex *CCG, cufftComplex *Tl, cufftCom
 __global__ void add_CCG_to_sum(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int N_tmp, int block_id);
 __global__ void set_CCG_mean(cufftComplex *CCG_sum, int l, int N_tmp, int N_euler);
 __global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int block_id);
+__global__ void add_Temp_to_sum(cufftComplex *Temp_sum, cufftComplex *tmp, int l, int N_tmp);
+__global__ void set_Temp_mean(cufftComplex *Temp_sum, int l, int N_tmp);
+__global__ void update_temp(cufftComplex *Temp_sum, cufftComplex *tmp, int l);
 __global__ void get_peak_and_SUM(cufftComplex *odata,float *res,int l,float d_m);
 __global__ void get_peak_pos(cufftComplex *odata,float *res,int l,float d_m);
 __global__ void scale(cufftComplex *data,int l2);
