@@ -61,6 +61,16 @@ void readParameters(int argc, char *argv[], Parameters *p)
 			p->cs=atof(argv[i]);
 			continue;
 		}
+		if(option.compare("--norm_type")==0){
+		        i++;
+		        p->norm_type=atoi(argv[i]);
+		        return;
+	       }
+	        if(option.compare("--invert")==0){
+	                i++;
+	                p->invert=atoi(argv[i]);
+	                return; 
+                }
 		if(option.compare("--Highres")==0){
 			i++;
 			p->highres=atof(argv[i]);
@@ -227,16 +237,11 @@ void parse(string line, Parameters *p)
 		p->norm_type=atoi(value);
 		return;
 	}
-	if(option.compare("replace_hot")==0){
-		i++;
-		p->replace_hot=atoi(value);
-		return;
-	}
-	if(option.compare("maximum_n_sigma")==0){
-		i++;
-		p->maximum_n_sigma=atoi(value);
-		return;
-	}
+	if(option.compare("invert")==0){
+	       i++;
+	       p->invert=atoi(value);
+	       return; 
+        }
 	printf("Undefined option: %s .Abort.\n",value);
 }
 

@@ -234,7 +234,8 @@ __global__ void apply_mask(cufftComplex *data,float d_m,float edge_half_width,in
     int local_id = i % image_size;
     int x = local_id % l;
     int y = local_id / l;
-
+    d_m = 1.5*d_m;
+    edge_half_width = 6;
     float r=hypotf(x-l/2,y-l/2);
 	if( r > (d_m/2+2*edge_half_width)){
 			data[i].x=0;
@@ -359,6 +360,51 @@ __global__ void compute_area_sum_ofSQR(cufftComplex *data,float *res,int nx, int
 		res[2*blockIdx.x+1] = sdata[blockDim.x];
 	}
 }
+__global__ void compute_sum_sqr(cufftComplex *data,float *res,int nx, int ny)
+{
+	extern __shared__ float sdata[];
+    // each thread loads one element from global to shared mem
+    int tid = threadIdx.x;
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+    int image_size = nx*ny;
+    int local_id = i % image_size;
+    int x = local_id % nx;
+    int y = local_id / nx;
+	int r = floor( hypotf(min(y,ny-y) ,min(x,nx-x)) + 0.5) - 1;
+	int l = max(nx,ny);
+
+	//if (r < l/2 && r >= 0 && x<=nx/2 ) {
+		sdata[tid] = data[i].x;
+		sdata[tid+blockDim.x] = data[i].x*data[i].x;
+	//}
+	//else
+	//{
+	//	sdata[tid]=0;
+	//	sdata[tid+blockDim.x] = 0;
+	//}
+	__syncthreads();
+	
+	if (tid < 512) { sdata[tid] += sdata[tid + 512]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 512];} __syncthreads();
+	if (tid < 256) { sdata[tid] += sdata[tid + 256]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 256];} __syncthreads();
+	if (tid < 128) { sdata[tid] += sdata[tid + 128]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 128];} __syncthreads();
+	if (tid < 64) { sdata[tid] += sdata[tid + 64]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 64];} __syncthreads();
+
+	if(tid < 32)
+	{
+		sdata[tid] += sdata[tid + 32]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 32];
+		sdata[tid] += sdata[tid + 16]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 16];
+		sdata[tid] += sdata[tid + 8]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 8];
+		sdata[tid] += sdata[tid + 4]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 4];
+		sdata[tid] += sdata[tid + 2]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 2];
+		sdata[tid] += sdata[tid + 1]; sdata[tid+blockDim.x] += sdata[tid +blockDim.x+ 1];
+	}
+
+	// write result for this block 
+	if (tid == 0) {
+		res[2*blockIdx.x] = sdata[0];
+		res[2*blockIdx.x+1] = sdata[blockDim.x];
+	}
+}
 
 __global__ void normalize(cufftComplex *data,int nx, int ny,float *means)
 {
@@ -373,6 +419,27 @@ __global__ void normalize(cufftComplex *data,int nx, int ny,float *means)
 	float tmp=data[i].x*sinf(data[i].y);
 	data[i].x=data[i].x*cosf(data[i].y);
 	data[i].y=tmp;
+}
+
+__global__ void divided_by_var(cufftComplex *data,int nx, int ny,float *var)
+{
+    // i <==> global ID
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+    int image_size = nx*ny;
+	int template_id = i / image_size;
+
+	if(var[template_id]!=0)	data[i].x=data[i].x/sqrtf(var[template_id]);
+
+}
+__global__ void substract_by_mean(cufftComplex *data,int nx, int ny,float *means)
+{
+    // i <==> global ID
+    long long  i = blockIdx.x*blockDim.x + threadIdx.x;
+    int image_size = nx*ny;
+	int template_id = i / image_size;
+
+	if(means[template_id]!=0)	data[i].x=data[i].x-means[template_id];
+
 }
 
 __global__ void rotate_IMG(float *d_image,float *d_rotated_image,float e,int nx,int ny)
@@ -592,49 +659,6 @@ __global__ void update_CCG(cufftComplex *CCG_sum, cufftComplex *CCG, int l, int 
 
 	float cur = CCG[i].x  / l / l ;
 	CCG[i].x = var>0 ? (cur-avg)/var:0;
-}
-
-// compute the avg of CCG in all templates
-__global__ void add_Temp_to_sum(cufftComplex *Temp_sum, cufftComplex *tmp, int l, int N_tmp)
-{
-	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
-	//Area of rectangle, l^2
-	int interval = l*l;
-
-	// compute average & vairance
-	for(int n=0;n<N_tmp;n++) 
-	{
-		float cur = tmp[ n*interval + i ].x;
-		Temp_sum[i].x += cur;
-		Temp_sum[i].y += (cur*cur);
-	}
-}
-
-__global__ void set_Temp_mean(cufftComplex *Temp_sum, int l, int N_tmp)
-{
-	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
-
-	float avg = Temp_sum[i].x/N_tmp;
-	float var = sqrtf(Temp_sum[i].y/N_tmp - avg*avg);
-	
-	Temp_sum[i].x = avg;
-	Temp_sum[i].y = var;
-
-}
-
-// update CCG val use avgeage & variance
-__global__ void update_temp(cufftComplex *Temp_sum, cufftComplex *tmp, int l)
-{
-	//On this function,block means subimage splitted from IMG, not block ON GPU
-	long long  i = blockIdx.x*blockDim.x + threadIdx.x;
-	//Local id corresponding to splitted IMG 
-	int local_id = i%(l*l);
-
-	float avg = Temp_sum[local_id].x;
-	float var = Temp_sum[local_id].y;
-	
-	float cur = tmp[i].x;
-	tmp[i].x = var>0 ? (cur-avg)/var:0;
 }
 
 

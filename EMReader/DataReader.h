@@ -18,7 +18,7 @@ struct Parameters
 	float kk=-1,energy=-1,cs=-1;
 	float highres=-1,lowres=-1;
 	float d_m=-1;
-	float edge_half_width=4;
+	float edge_half_width=6;
 	float lambda,dfu,dfv,ds;
 	float ampconst=0.07;
 	float defocus, dfdiff, dfang;
@@ -39,8 +39,7 @@ struct Parameters
 	int device_id = 0;
 	//will be d_m after inputting of d_M if user do not make it fixed
 	int overlap = -1;
-	int replace_hot = 0; 
-	int maximum_n_sigma = 2;
+        int invert=0;
 
 	void printAllPara()
 	{
@@ -56,7 +55,6 @@ struct Parameters
 		printf("--Highres          %f\n",highres);
 		printf("--Lowres           %f\n",lowres);
 		printf("--diameter         %f\n",d_m);
-
 		printf("Parameter optional:\n");
 		printf("--threshold        %f\n",thres);
 		printf("--output           %s\n",outlst);
@@ -67,8 +65,7 @@ struct Parameters
 		printf("--phase_flip       %d\n",phase_flip);
 		printf("--overlap          %d\n",overlap);
 		printf("--norm_type        %d\n",norm_type);
-		printf("--replace_hot      %d\n",replace_hot);
-		printf("--max_n_sigma      %d\n",maximum_n_sigma);
+		printf("--invert           %d\n",invert);
 
 		printf("Parameter fixed:\n");
 		printf("--a                %f\n",a);
