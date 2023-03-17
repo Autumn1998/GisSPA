@@ -1,3 +1,0 @@
-2022/07/27 10:01:56	2022/07/27 10:01:56	 54949/    -1	user-80	../Script/relion2lst_only_particles.py test_Image.star --lst test_Image.lst --dir Image2
-2022/07/27 10:04:54	2022/07/27 10:04:54	 55496/    -1	user-80	../Script/relion2lst_only_particles.py test_Image.star --lst test_Image.lst --dir Image
-2022/07/27 11:01:05	2022/07/27 11:01:06	  8807/    -1	user-80	../Script/relion2lst_only_particles.py test_Image.star --lst test_Image.lst --dir Image

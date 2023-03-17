@@ -188,7 +188,7 @@ void readAndPaddingTemplate(Parameters *para,cufftComplex *h_templates,int N, do
     {
         tp->readImage(para->temp2d,J);
         float *data = tp->getData();
-       // double mean = 0, sigma = 0;
+        double mean = 0, sigma = 0;
        /* if(para->norm_type == 1)
         {
             for(int j=0;j<tp->header.ny;j++)
@@ -679,37 +679,36 @@ void rotateTemplate(cufftHandle *plan_for_temp, cufftComplex *d_templates,cufftC
     CUDA_CHECK();
     //debug
    // write_temp(para,rotated_templates,N,e,stream);
-    if(para.norm_type == 1)
-	{
-        compute_sum_sqr<<<blockGPU_num,BLOCK_SIZE,2*BLOCK_SIZE*sizeof(float),*stream>>>(rotated_templates,d_buf,para.padding_size,para.padding_size);
-        CUDA_CHECK();
-        CUDA_CALL(cudaMemcpyAsync(h_buf, d_buf,2*sizeof(float)*padded_template_size*N/BLOCK_SIZE, cudaMemcpyDeviceToHost, *stream));
-        cudaStreamSynchronize(*stream);
+    compute_sum_sqr<<<blockGPU_num,BLOCK_SIZE,2*BLOCK_SIZE*sizeof(float),*stream>>>(rotated_templates,d_buf,para.padding_size,para.padding_size);
+    CUDA_CHECK();
+    CUDA_CALL(cudaMemcpyAsync(h_buf, d_buf,2*sizeof(float)*padded_template_size*N/BLOCK_SIZE, cudaMemcpyDeviceToHost, *stream));
+    cudaStreamSynchronize(*stream);
         
-        float infile_mean[N],infile_sqr[N];
-        memset(infile_mean,0,N*sizeof(float));
-        memset(infile_sqr,0,N*sizeof(float));
-        for(int k=0;k<padded_template_size*N/BLOCK_SIZE;k++)
-        {
-            int id = k/(padded_template_size/BLOCK_SIZE);
-            infile_mean[id] += h_buf[2*k];
-            infile_sqr[id] += h_buf[2*k+1];
-        }  
-        for(int k=0;k<N;k++) 
-        {
-            infile_mean[k] = (infile_mean[k]/(padded_template_size));
-            infile_sqr[k] = infile_sqr[k]/padded_template_size-infile_mean[k]*infile_mean[k];
-        }
+    float infile_mean[N],infile_sqr[N];
+    memset(infile_mean,0,N*sizeof(float));
+    memset(infile_sqr,0,N*sizeof(float));
+    for(int k=0;k<padded_template_size*N/BLOCK_SIZE;k++)
+    {
+        int id = k/(padded_template_size/BLOCK_SIZE);
+        infile_mean[id] += h_buf[2*k];
+        infile_sqr[id] += h_buf[2*k+1];
+    }  
+    for(int k=0;k<N;k++) 
+    {
+        infile_mean[k] = (infile_mean[k]/(padded_template_size));
+        infile_sqr[k] = infile_sqr[k]/padded_template_size-infile_mean[k]*infile_mean[k];
+    }
         //Do Normalization with computed infile_mean[]
-        CUDA_CALL(  cudaMemcpyAsync(d_means, infile_mean, sizeof(float)*N, cudaMemcpyHostToDevice, *stream)  );
-        substract_by_mean<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(rotated_templates,l,l,d_means);
-        CUDA_CHECK(); 
-        CUDA_CALL(  cudaMemcpyAsync(d_means, infile_sqr, sizeof(float)*N, cudaMemcpyHostToDevice, *stream)  );
-        divided_by_var<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(rotated_templates,para.padding_size,para.padding_size,d_means);
-        //normalize<<<block_num,BLOCK_SIZE,0,*stream>>>(rotated_templates,para.padding_size,para.padding_size,d_means);
-        CUDA_CHECK();  
-    }		
-        //Inplace FFT
+    CUDA_CALL(  cudaMemcpyAsync(d_means, infile_mean, sizeof(float)*N, cudaMemcpyHostToDevice, *stream)  );
+        //Contain ap2ri
+    substract_by_mean<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(rotated_templates,l,l,d_means);
+    CUDA_CHECK(); 
+    CUDA_CALL(  cudaMemcpyAsync(d_means, infile_sqr, sizeof(float)*N, cudaMemcpyHostToDevice, *stream)  );
+    divided_by_var<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(rotated_templates,para.padding_size,para.padding_size,d_means);
+    //normalize<<<block_num,BLOCK_SIZE,0,*stream>>>(rotated_templates,para.padding_size,para.padding_size,d_means);
+    CUDA_CHECK();   
+    //write_temp(para,rotated_templates,N,e,stream);   
+    //Inplace FFT
     CUFFT_CALL(  cufftExecC2C(*plan_for_temp, rotated_templates, rotated_templates, CUFFT_FORWARD)  );
     //Scale IMG to normal size
     scale<<<blockGPU_num,BLOCK_SIZE,0,*stream>>>(rotated_templates,padded_template_size);
