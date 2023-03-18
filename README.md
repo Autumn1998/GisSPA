@@ -8,9 +8,9 @@ No need to install
 GPU parallel for isSPA, pick particle with CC.  
 CPU version from CJ, BeiJing
 
-######################################
-This site is no longer updated, please check "https://www.x-mol.com/groups/Zhang_Xinzheng" for subsequent updates.
-
+######################################   
+This site is no longer updated, please check "https://www.x-mol.com/groups/Zhang_Xinzheng" for subsequent updates.  
+Please find the test data on this website.  
 
 
 #### structure
