@@ -12,6 +12,8 @@ CPU version from CJ, BeiJing
 This site is no longer updated, please check "https://www.x-mol.com/groups/Zhang_Xinzheng" for subsequent updates.  
 Please find the test data on this website.  
 
+#### pipeline  
+see GisSPA-protocal.pdf 
 
 #### structure
 ./deprated_code/:ignored this file   
